@@ -8,9 +8,6 @@ local VALID_MODES = {
     advantage = true,
 }
 
-SLASH_DICEROLLER1 = "/roll20"
-SLASH_DICEROLLER2 = "/midado"
-
 SlashCmdList["DICEROLLER"] = function()
     local result = DR:Roll()
     local msg = "[DiceRoller] (" .. DR.mode .. ") " .. result
