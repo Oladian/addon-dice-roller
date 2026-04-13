@@ -1,0 +1,11 @@
+## Interface: 120001, 120005
+## Title: Dice Roller
+## Notes: Personalized dice roller
+## Author: Oladian
+## Version: 1.0
+## SavedVariables: DiceRollerDB
+
+core.lua
+rng.lua
+commands.lua
+ui.lua
