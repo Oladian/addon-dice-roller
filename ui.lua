@@ -42,6 +42,14 @@ local history    = {}
 local dots       = {}
 local shapeLines = {}
 
+local animState = {
+    active = false,
+    elapsed = 0,
+    duration = 1.0,
+    finalResult = nil,
+    currentAngle = 0,
+}
+
 local function applyBackdrop(frame, bgColor, borderColor)
     frame:SetBackdrop({
         bgFile   = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
@@ -103,30 +111,39 @@ local function drawPolygon(parent, cx, cy, radius, sides, thickness, angleOffset
     return points
 end
 
-local function buildD3Shape(parent, cx, cy)
+local function buildD3Shape(parent, cx, cy, angleOffset)
+    angleOffset = angleOffset or 0
     local r = 36
-    local points = drawPolygon(parent, cx, cy, r, 3, 1.8, 90)
+    local points = drawPolygon(parent, cx, cy, r, 3, 1.8, 90 + angleOffset)
     drawLine(parent, cx, cy, points[1].x, points[1].y, 1.0)
     drawLine(parent, cx, cy, points[2].x, points[2].y, 1.0)
     drawLine(parent, cx, cy, points[3].x, points[3].y, 1.0)
 end
 
-local function buildD20Shape(parent, cx, cy)
+local function buildD20Shape(parent, cx, cy, angleOffset)
+    angleOffset = angleOffset or 0
     local r = 36
-    local outer = drawPolygon(parent, cx, cy, r, 5, 1.8, 90)
-    local inner = drawPolygon(parent, cx, cy, r * 0.45, 5, 1.0, -90)
+    local outer = drawPolygon(parent, cx, cy, r, 5, 1.8, 90 + angleOffset)
+    local inner = drawPolygon(parent, cx, cy, r * 0.45, 5, 1.0, -90 + angleOffset)
     for i = 1, 5 do
         local j = ((i + 1) % 5) + 1
         drawLine(parent, outer[i].x, outer[i].y, inner[j].x, inner[j].y, 1.0)
     end
 end
 
-local function buildD100Shape(parent, cx, cy)
-    drawPolygon(parent, cx, cy, 36, 12, 1.5, 90)
-    drawPolygon(parent, cx, cy, 20, 12, 1.0, 90)
+local function buildD100Shape(parent, cx, cy, angleOffset)
+    angleOffset = angleOffset or 0
+    drawPolygon(parent, cx, cy, 36, 12, 1.5, 90 + angleOffset)
+    drawPolygon(parent, cx, cy, 20, 12, 1.0, 90 + angleOffset)
 end
 
-local function showDieShape(dieType, resultLabel)
+local function buildD6Shape(parent, cx, cy, angleOffset)
+    angleOffset = angleOffset or 0
+    drawPolygon(parent, cx, cy, 36, 4, 1.8, 45 + angleOffset)
+end
+
+local function showDieShape(dieType, resultLabel, angleOffset)
+    angleOffset = angleOffset or 0
     clearShapeLines()
 
     local canvas = DR.UI.shapeCanvas
@@ -137,21 +154,22 @@ local function showDieShape(dieType, resultLabel)
     local cy = canvas:GetHeight() / 2
 
     if dieType == "D3" then
-        buildD3Shape(canvas, cx, cy)
+        buildD3Shape(canvas, cx, cy, angleOffset)
+    elseif dieType == "D6" then
+        buildD6Shape(canvas, cx, cy, angleOffset)
     elseif dieType == "D20" then
-        buildD20Shape(canvas, cx, cy)
+        buildD20Shape(canvas, cx, cy, angleOffset)
     elseif dieType == "D100" then
-        buildD100Shape(canvas, cx, cy)
+        buildD100Shape(canvas, cx, cy, angleOffset)
     end
 end
 
 local function showD6Face(value)
     clearShapeLines()
 
+    DR.UI.dieFace:Show()
     DR.UI.shapeCanvas:Hide()
     DR.UI.shapeResultLabel:Hide()
-    DR.UI.dieFace:Show()
-
     for _, dot in ipairs(dots) do
         dot:Hide()
     end
@@ -236,16 +254,9 @@ local function selectTab(dieType)
         end
     end
 
-    if dieType == "D6" then
-        DR.UI.dieFace:Show()
-        DR.UI.shapeCanvas:Hide()
-        DR.UI.shapeResultLabel:Hide()
-        clearShapeLines()
-    else
-        DR.UI.dieFace:Hide()
-        showDieShape(dieType, DR.UI.shapeResultLabel)
-        DR.UI.shapeResultLabel:SetText("—")
-    end
+    DR.UI.dieFace:Hide()
+    showDieShape(dieType, DR.UI.shapeResultLabel, 0)
+    DR.UI.shapeResultLabel:SetText("—")
 
     refreshModeDropdown()
     refreshHistory()
@@ -255,25 +266,17 @@ local function onRoll()
     local sides  = tonumber(activeDie:sub(2))
     local result = DR:Roll(sides)
 
-    DR.UI.resultValue:SetText(tostring(result))
+    animState.active = true
+    animState.elapsed = 0
+    animState.finalResult = result
+    animState.currentAngle = 0
+
+    DR.UI.resultValue:SetText("—")
     DR.UI.resultMode:SetText(activeMode .. " mode")
 
-    if activeDie == "D6" then
-        showD6Face(result)
-    else
-        showDieShape(activeDie, DR.UI.shapeResultLabel)
-        DR.UI.shapeResultLabel:SetText(tostring(result))
-    end
-
-    local playerName = UnitName("player")
-    addHistoryEntry(playerName, activeDie, activeMode, result, true)
-    refreshHistory()
-
-    if IsInGroup() then
-        local channel = IsInRaid() and "RAID" or "PARTY"
-        local msg     = table.concat({ "ROLL", activeDie, activeMode, tostring(result) }, ":")
-        C_ChatInfo.SendAddonMessage("DiceRoller", msg, channel)
-    end
+    DR.UI.dieFace:Hide()
+    showDieShape(activeDie, DR.UI.shapeResultLabel, 0)
+    DR.UI.shapeResultLabel:SetText("—")
 end
 
 local function buildHistoryRows(container)
@@ -568,6 +571,9 @@ local function registerAddonMessages()
     listener:RegisterEvent("CHAT_MSG_ADDON")
     listener:SetScript("OnEvent", function(self, event, prefix, message, channel, sender)
         if prefix ~= "DiceRoller" then return end
+        
+        local playerName = UnitName("player") .. "-" .. GetRealmName()
+        if sender == playerName then return end
 
         local msgType, dieType, modeName, rawValue = strsplit(":", message)
         local value = tonumber(rawValue)
@@ -578,6 +584,42 @@ local function registerAddonMessages()
         end
     end)
 end
+
+local animFrame = CreateFrame("Frame")
+animFrame:SetScript("OnUpdate", function(self, elapsed)
+    if not animState.active then return end
+
+    animState.elapsed = animState.elapsed + elapsed
+
+    local progress = math.min(animState.elapsed / animState.duration, 1.0)
+    local easeOut = 1 - math.pow(1 - progress, 3)
+
+    local totalRotation = 720 + (math.random(0, 360))
+    animState.currentAngle = easeOut * totalRotation
+
+    showDieShape(activeDie, DR.UI.shapeResultLabel, animState.currentAngle)
+
+    if progress >= 1.0 then
+        if activeDie == "D6" then
+            showD6Face(animState.finalResult)
+        else
+            DR.UI.shapeResultLabel:SetText(tostring(animState.finalResult))
+        end
+        DR.UI.resultValue:SetText(tostring(animState.finalResult))
+
+        local playerName = UnitName("player")
+        addHistoryEntry(playerName, activeDie, activeMode, animState.finalResult, true)
+        refreshHistory()
+
+        if IsInGroup() then
+            local channel = IsInRaid() and "RAID" or "PARTY"
+            local msg = table.concat({ "ROLL", activeDie, activeMode, tostring(animState.finalResult) }, ":")
+            C_ChatInfo.SendAddonMessage("DiceRoller", msg, channel)
+        end
+
+        animState.active = false
+    end
+end)
 
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
