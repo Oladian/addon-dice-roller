@@ -206,13 +206,12 @@ local function refreshHistory()
     for _, entry in ipairs(history) do
         if entry.die == activeDie then
             shown = shown + 1
-            if shown > 5 then break end
+            if shown > 20 then break end
 
             local row = rows[shown]
-            local container = DR.UI.historyContainer
+            local container = DR.UI.historyScrollChild
             row:ClearAllPoints()
-            row:SetPoint("TOPLEFT",  container, "TOPLEFT",  0, -(shown - 1) * 22)
-            row:SetPoint("TOPRIGHT", container, "TOPRIGHT", 0, -(shown - 1) * 22)
+            row:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -(shown - 1) * 22)
             row:Show()
 
             if entry.mine then
@@ -228,6 +227,8 @@ local function refreshHistory()
             row.valLabel:SetText(tostring(entry.value))
         end
     end
+    
+    DR.UI.historyScrollChild:SetHeight(math.max(shown * 22, 110))
 end
 
 local function refreshModeDropdown()
@@ -281,9 +282,10 @@ end
 
 local function buildHistoryRows(container)
     local rows = {}
-    for i = 1, 5 do
+    for i = 1, 20 do
         local row = CreateFrame("Frame", nil, container)
         row:SetHeight(20)
+        row:SetWidth(240)
         row:Hide()
 
         local whoLabel = row:CreateFontString(nil, "OVERLAY")
@@ -482,21 +484,25 @@ local function buildMainFrame()
     divider:SetPoint("TOPLEFT",  frame, "TOPLEFT",  8,  -338)
     divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -338)
 
-    local historyContainer = CreateFrame("Frame", nil, frame)
-    historyContainer:SetPoint("TOPLEFT",  frame, "TOPLEFT",  12, -344)
-    historyContainer:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -344)
-    historyContainer:SetHeight(120)
+    local historyScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+    historyScroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -344)
+    historyScroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -32, 12)
+    
+    local historyScrollChild = CreateFrame("Frame", nil, historyScroll)
+    historyScrollChild:SetSize(260, 110)
+    historyScroll:SetScrollChild(historyScrollChild)
 
-    DR.UI.frame            = frame
-    DR.UI.tabButtons       = tabButtons
-    DR.UI.dieFace          = dieFace
-    DR.UI.shapeCanvas      = shapeCanvas
-    DR.UI.shapeResultLabel = shapeResultLabel
-    DR.UI.resultValue      = resultValue
-    DR.UI.resultMode       = resultMode
-    DR.UI.modeDropdown     = modeDropdown
-    DR.UI.historyContainer = historyContainer
-    DR.UI.historyRows      = buildHistoryRows(historyContainer)
+    DR.UI.frame               = frame
+    DR.UI.tabButtons          = tabButtons
+    DR.UI.dieFace             = dieFace
+    DR.UI.shapeCanvas         = shapeCanvas
+    DR.UI.shapeResultLabel    = shapeResultLabel
+    DR.UI.resultValue         = resultValue
+    DR.UI.resultMode          = resultMode
+    DR.UI.modeDropdown        = modeDropdown
+    DR.UI.historyScroll       = historyScroll
+    DR.UI.historyScrollChild  = historyScrollChild
+    DR.UI.historyRows         = buildHistoryRows(historyScrollChild)
 
     selectTab(DiceRollerDB.activeDie or "D6")
 end
