@@ -578,14 +578,17 @@ local function registerAddonMessages()
     listener:SetScript("OnEvent", function(self, event, prefix, message, channel, sender)
         if prefix ~= "DiceRoller" then return end
         
-        local playerName = UnitName("player") .. "-" .. GetRealmName()
-        if sender == playerName then return end
+        local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+        local senderShort = Ambiguate(sender, "short")
+        local playerShort = Ambiguate(playerFullName, "short")
+        
+        if senderShort == playerShort then return end
 
         local msgType, dieType, modeName, rawValue = strsplit(":", message)
         local value = tonumber(rawValue)
 
         if msgType == "ROLL" and dieType and modeName and value then
-            addHistoryEntry(Ambiguate(sender, "short"), dieType, modeName, value, false)
+            addHistoryEntry(senderShort, dieType, modeName, value, false)
             refreshHistory()
         end
     end)
