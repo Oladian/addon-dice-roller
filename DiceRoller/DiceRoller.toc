@@ -6,6 +6,7 @@
 ## SavedVariables: DiceRollerDB
 
 core.lua
+locales.lua
 rng.lua
 commands.lua
 ui.lua

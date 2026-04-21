@@ -1,4 +1,5 @@
 local DR = DiceRoller
+local L = DR.L
 
 DR.UI = {}
 
@@ -310,6 +311,76 @@ local function buildHistoryRows(container)
     return rows
 end
 
+local function buildHelpFrame()
+    local helpFrame = CreateFrame("Frame", "DiceRollerHelpFrame", UIParent, "BackdropTemplate")
+    helpFrame:SetSize(500, 550)
+    helpFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    helpFrame:SetFrameStrata("DIALOG")
+    helpFrame:SetMovable(true)
+    helpFrame:EnableMouse(true)
+    helpFrame:RegisterForDrag("LeftButton")
+    helpFrame:SetScript("OnDragStart", helpFrame.StartMoving)
+    helpFrame:SetScript("OnDragStop", helpFrame.StopMovingOrSizing)
+    applyBackdrop(helpFrame, COLOR_BG_DARK, COLOR_GOLD)
+    helpFrame:Hide()
+    
+    local header = CreateFrame("Frame", nil, helpFrame, "BackdropTemplate")
+    header:SetHeight(30)
+    header:SetPoint("TOPLEFT", helpFrame, "TOPLEFT", 0, 0)
+    header:SetPoint("TOPRIGHT", helpFrame, "TOPRIGHT", 0, 0)
+    applyBackdrop(header, COLOR_BG_PANEL, COLOR_GOLD)
+    
+    local title = header:CreateFontString(nil, "OVERLAY")
+    title:SetFont("Fonts\\MORPHEUS.TTF", 14, "")
+    title:SetTextColor(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b)
+    title:SetText(L.HELP_TITLE)
+    title:SetPoint("CENTER", header, "CENTER", -8, 0)
+    
+    local closeBtn = CreateFrame("Button", nil, helpFrame, "UIPanelCloseButton")
+    closeBtn:SetSize(24, 24)
+    closeBtn:SetPoint("TOPRIGHT", helpFrame, "TOPRIGHT", 0, 0)
+    closeBtn:SetScript("OnClick", function() helpFrame:Hide() end)
+    
+    local scrollFrame = CreateFrame("ScrollFrame", nil, helpFrame, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", helpFrame, "TOPLEFT", 12, -40)
+    scrollFrame:SetPoint("BOTTOMRIGHT", helpFrame, "BOTTOMRIGHT", -32, 12)
+    
+    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+    scrollChild:SetSize(450, 1000)
+    scrollFrame:SetScrollChild(scrollChild)
+    
+    local yOffset = 0
+    local function addSection(titleText, contentText)
+        local sectionTitle = scrollChild:CreateFontString(nil, "OVERLAY")
+        sectionTitle:SetFont("Fonts\\MORPHEUS.TTF", 13, "")
+        sectionTitle:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+        sectionTitle:SetText(titleText)
+        sectionTitle:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, yOffset)
+        sectionTitle:SetWidth(450)
+        sectionTitle:SetJustifyH("LEFT")
+        yOffset = yOffset - 20
+        
+        local content = scrollChild:CreateFontString(nil, "OVERLAY")
+        content:SetFont("Fonts\\FRIZQT__.TTF", 11, "")
+        content:SetTextColor(0.9, 0.9, 0.9)
+        content:SetText(contentText)
+        content:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, yOffset)
+        content:SetWidth(450)
+        content:SetJustifyH("LEFT")
+        content:SetSpacing(3)
+        yOffset = yOffset - content:GetStringHeight() - 20
+    end
+    
+    addSection(L.HELP_FEATURES, L.HELP_FEATURES_TEXT)
+    addSection(L.HELP_USAGE, L.HELP_USAGE_TEXT)
+    addSection(L.HELP_MODES, L.HELP_MODES_TEXT)
+    addSection(L.HELP_PARTY, L.HELP_PARTY_TEXT)
+    
+    scrollChild:SetHeight(math.abs(yOffset))
+    
+    DR.UI.helpFrame = helpFrame
+end
+
 local function buildMainFrame()
     local frame = CreateFrame("Frame", "DiceRollerFrame", UIParent, "BackdropTemplate")
     frame:SetSize(FRAME_WIDTH, FRAME_HEIGHT)
@@ -335,8 +406,21 @@ local function buildMainFrame()
     local title = header:CreateFontString(nil, "OVERLAY")
     title:SetFont("Fonts\\MORPHEUS.TTF", 14, "")
     title:SetTextColor(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b)
-    title:SetText("DICE ROLLER")
+    title:SetText(L.TITLE)
     title:SetPoint("CENTER", header, "CENTER", -8, 0)
+    
+    local helpBtn = CreateFrame("Button", nil, header)
+    helpBtn:SetSize(20, 20)
+    helpBtn:SetPoint("RIGHT", header, "RIGHT", -30, 0)
+    helpBtn:SetNormalTexture("Interface\\Common\\help-i")
+    helpBtn:SetHighlightTexture("Interface\\Common\\help-i")
+    helpBtn:SetScript("OnClick", function() DR.UI.helpFrame:Show() end)
+    helpBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(L.HELP, COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+        GameTooltip:Show()
+    end)
+    helpBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
     closeBtn:SetSize(24, 24)
@@ -404,7 +488,7 @@ local function buildMainFrame()
     local resultLabel = resultArea:CreateFontString(nil, "OVERLAY")
     resultLabel:SetFont("Fonts\\MORPHEUS.TTF", 10, "")
     resultLabel:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
-    resultLabel:SetText("RESULT")
+    resultLabel:SetText(L.RESULT)
     resultLabel:SetPoint("TOP", resultArea, "TOP", 0, -6)
 
     local resultValue = resultArea:CreateFontString(nil, "OVERLAY")
@@ -427,7 +511,7 @@ local function buildMainFrame()
     local modeLabel = modeRow:CreateFontString(nil, "OVERLAY")
     modeLabel:SetFont("Fonts\\MORPHEUS.TTF", 11, "")
     modeLabel:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
-    modeLabel:SetText("MODE")
+    modeLabel:SetText(L.MODE)
     modeLabel:SetPoint("LEFT", modeRow, "LEFT", 4, 0)
 
     local modeDropdown = CreateFrame("Frame", "DiceRollerModeDropdown", modeRow, "UIDropDownMenuTemplate")
@@ -461,7 +545,7 @@ local function buildMainFrame()
     local rollLabel = rollBtn:CreateFontString(nil, "OVERLAY")
     rollLabel:SetFont("Fonts\\MORPHEUS.TTF", 14, "")
     rollLabel:SetTextColor(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b)
-    rollLabel:SetText("ROLL THE DICE")
+    rollLabel:SetText(L.ROLL_BUTTON)
     rollLabel:SetPoint("CENTER", rollBtn, "CENTER", 0, 0)
 
     rollBtn:SetScript("OnEnter", function(self)
@@ -475,7 +559,7 @@ local function buildMainFrame()
     local historyHeader = frame:CreateFontString(nil, "OVERLAY")
     historyHeader:SetFont("Fonts\\MORPHEUS.TTF", 10, "")
     historyHeader:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
-    historyHeader:SetText("HISTORY")
+    historyHeader:SetText(L.HISTORY)
     historyHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -326)
 
     local divider = frame:CreateTexture(nil, "ARTWORK")
@@ -560,8 +644,8 @@ local function buildMinimapButton()
 
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine("Dice Roller", COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
-        GameTooltip:AddLine("Click to toggle", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine(L.TOOLTIP_TITLE, COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+        GameTooltip:AddLine(L.TOOLTIP_CLICK, 0.8, 0.8, 0.8)
         GameTooltip:Show()
     end)
     button:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -642,6 +726,7 @@ loader:SetScript("OnEvent", function(self, event, addonName)
         DR.mode    = DiceRollerDB.mode
     end
 
+    buildHelpFrame()
     buildMainFrame()
     buildMinimapButton()
     registerAddonMessages()
