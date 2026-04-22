@@ -8,14 +8,6 @@ local VALID_MODES = {
     advantage = true,
 }
 
-SlashCmdList["DICEROLLER"] = function()
-    local result = DR:Roll()
-    local msg = "[DiceRoller] (" .. DR.mode .. ") " .. result
-
-    print(msg)
-    SendChatMessage(msg, "SAY")
-end
-
 SLASH_DICEMODE1 = "/dicemode"
 
 SlashCmdList["DICEMODE"] = function(msg)
