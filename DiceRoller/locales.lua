@@ -13,6 +13,8 @@ local L = {
     ROLL_BUTTON = "ROLL THE DICE",
     HISTORY = "HISTORY",
     HELP = "HELP",
+    CLEAR_HISTORY = "Clear History",
+    CLEAR_HISTORY_DESC = "Clears only your local roll history. Other players' history is not affected.",
     
     -- Tooltip
     TOOLTIP_TITLE = "Dice Roller",
@@ -50,6 +52,8 @@ if locale == "esES" or locale == "esMX" then
     L.ROLL_BUTTON = "TIRAR EL DADO"
     L.HISTORY = "HISTORIAL"
     L.HELP = "AYUDA"
+    L.CLEAR_HISTORY = "Borrar Historial"
+    L.CLEAR_HISTORY_DESC = "Borra solo tu historial local de tiradas. No afecta al historial de otros jugadores."
     
     L.TOOLTIP_TITLE = "Tirador de Dados"
     L.TOOLTIP_CLICK = "Clic para abrir/cerrar"

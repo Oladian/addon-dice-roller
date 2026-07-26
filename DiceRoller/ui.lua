@@ -232,6 +232,11 @@ local function refreshHistory()
     DR.UI.historyScrollChild:SetHeight(math.max(shown * 22, 110))
 end
 
+local function clearHistory()
+    history = {}
+    refreshHistory()
+end
+
 local function refreshModeDropdown()
     local allowed = MODES_BY_DIE[activeDie]
     if not allowed[activeMode] then
@@ -561,6 +566,21 @@ local function buildMainFrame()
     historyHeader:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
     historyHeader:SetText(L.HISTORY)
     historyHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -326)
+
+    local clearHistoryBtn = CreateFrame("Button", nil, frame)
+    clearHistoryBtn:SetSize(16, 16)
+    clearHistoryBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -14, -324)
+    clearHistoryBtn:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+    clearHistoryBtn:SetHighlightTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
+    clearHistoryBtn:SetPushedTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Down")
+    clearHistoryBtn:SetScript("OnClick", clearHistory)
+    clearHistoryBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine(L.CLEAR_HISTORY, COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+        GameTooltip:AddLine(L.CLEAR_HISTORY_DESC, 0.8, 0.8, 0.8, true)
+        GameTooltip:Show()
+    end)
+    clearHistoryBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
     local divider = frame:CreateTexture(nil, "ARTWORK")
     divider:SetHeight(1)

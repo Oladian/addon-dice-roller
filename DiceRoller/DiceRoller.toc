@@ -2,7 +2,7 @@
 ## Title: Dice Roller
 ## Notes: Personalized dice roller
 ## Author: Oladian
-## Version: 1.0.1
+## Version: 1.0.2
 ## SavedVariables: DiceRollerDB
 
 core.lua
