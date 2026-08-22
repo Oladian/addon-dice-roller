@@ -15,6 +15,12 @@ local function shuffleDeck(sides)
     end
 end
 
+function DR:ResetRNG()
+    lastRoll  = nil
+    lowStreak = 0
+    deck      = {}
+end
+
 function DR:Roll(sides)
     sides = sides or 20
     local mode = self.mode

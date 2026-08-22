@@ -49,7 +49,11 @@ local animState = {
     duration = 1.0,
     finalResult = nil,
     currentAngle = 0,
+    totalRotation = 720,
 }
+
+local animFrame
+local onAnimUpdate
 
 local function applyBackdrop(frame, bgColor, borderColor)
     frame:SetBackdrop({
@@ -79,19 +83,28 @@ local function restorePosition(frame)
     end
 end
 
+local shapeLineCount = 0
+
 local function clearShapeLines()
-    for _, line in ipairs(shapeLines) do
-        line:Hide()
+    for i = 1, shapeLineCount do
+        shapeLines[i]:Hide()
     end
+    shapeLineCount = 0
 end
 
 local function drawLine(parent, x1, y1, x2, y2, thickness)
-    local line = parent:CreateLine()
+    local index = shapeLineCount + 1
+    local line  = shapeLines[index]
+    if not line then
+        line = parent:CreateLine(nil, "OVERLAY")
+        shapeLines[index] = line
+    end
+    shapeLineCount = index
     line:SetColorTexture(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b, 1)
     line:SetThickness(thickness or 1.5)
     line:SetStartPoint("BOTTOMLEFT", parent, x1, y1)
     line:SetEndPoint("BOTTOMLEFT", parent, x2, y2)
-    table.insert(shapeLines, line)
+    line:Show()
     return line
 end
 
@@ -248,8 +261,11 @@ local function refreshModeDropdown()
 end
 
 local function selectTab(dieType)
+    if dieType == activeDie then return end
     activeDie              = dieType
     DiceRollerDB.activeDie = dieType
+
+    DR:ResetRNG()
 
     for _, btn in ipairs(DR.UI.tabButtons) do
         if btn.dieType == dieType then
@@ -277,6 +293,8 @@ local function onRoll()
     animState.elapsed = 0
     animState.finalResult = result
     animState.currentAngle = 0
+    animState.totalRotation = 720 + math.random(0, 360)
+    animFrame:SetScript("OnUpdate", onAnimUpdate)
 
     DR.UI.resultValue:SetText("—")
     DR.UI.resultMode:SetText(activeMode .. " mode")
@@ -679,13 +697,14 @@ local function registerAddonMessages()
 
     local listener = CreateFrame("Frame")
     listener:RegisterEvent("CHAT_MSG_ADDON")
+
+    local playerShort = Ambiguate(UnitName("player") .. "-" .. GetRealmName(), "short")
+
     listener:SetScript("OnEvent", function(self, event, prefix, message, channel, sender)
         if prefix ~= "DiceRoller" then return end
-        
-        local playerFullName = UnitName("player") .. "-" .. GetRealmName()
+
         local senderShort = Ambiguate(sender, "short")
-        local playerShort = Ambiguate(playerFullName, "short")
-        
+
         if senderShort == playerShort then return end
 
         local msgType, dieType, modeName, rawValue = strsplit(":", message)
@@ -698,17 +717,20 @@ local function registerAddonMessages()
     end)
 end
 
-local animFrame = CreateFrame("Frame")
-animFrame:SetScript("OnUpdate", function(self, elapsed)
-    if not animState.active then return end
+animFrame = CreateFrame("Frame")
+
+onAnimUpdate = function(self, elapsed)
+    if not animState.active then
+        self:SetScript("OnUpdate", nil)
+        return
+    end
 
     animState.elapsed = animState.elapsed + elapsed
 
     local progress = math.min(animState.elapsed / animState.duration, 1.0)
-    local easeOut = 1 - math.pow(1 - progress, 3)
+    local easeOut = 1 - (1 - progress) ^ 3
 
-    local totalRotation = 720 + (math.random(0, 360))
-    animState.currentAngle = easeOut * totalRotation
+    animState.currentAngle = easeOut * animState.totalRotation
 
     showDieShape(activeDie, DR.UI.shapeResultLabel, animState.currentAngle)
 
@@ -731,8 +753,9 @@ animFrame:SetScript("OnUpdate", function(self, elapsed)
         end
 
         animState.active = false
+        self:SetScript("OnUpdate", nil)
     end
-end)
+end
 
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("ADDON_LOADED")
