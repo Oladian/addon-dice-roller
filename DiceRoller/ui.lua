@@ -9,8 +9,8 @@ local COLOR_BG_DARK     = { r = 0.10, g = 0.08, b = 0.05 }
 local COLOR_BG_PANEL    = { r = 0.07, g = 0.05, b = 0.03 }
 local COLOR_TEXT_MUTED  = { r = 0.48, g = 0.39, b = 0.21 }
 
-local FRAME_WIDTH  = 300
-local FRAME_HEIGHT = 480
+local FRAME_WIDTH  = 360
+local FRAME_HEIGHT = 540
 
 local DICE_TYPES = { "D3", "D6", "D20", "D100" }
 
@@ -35,6 +35,14 @@ local DOT_LAYOUTS = {
 local MINIMAP_RADIUS      = 104
 local MINIMAP_BUTTON_SIZE = 28
 
+local SOUND_ROLL_START = { "840222", "840224", "840226", "840228", "840230", "840232" }
+local SOUND_ROLL_END   = { "1668195", "1668196", "1668197", "1668198", "1668199", "1668200" }
+local SOUND_CRIT       = "1489461"
+local SOUND_FAIL       = "569773"
+
+local COLOR_RESULT_CRIT = { r = 1.00, g = 0.84, b = 0.25 }
+local COLOR_RESULT_FAIL = { r = 0.90, g = 0.25, b = 0.18 }
+
 DiceRollerDB = DiceRollerDB or {}
 
 local activeDie  = "D6"
@@ -55,13 +63,14 @@ local animState = {
 local animFrame
 local onAnimUpdate
 
-local function applyBackdrop(frame, bgColor, borderColor)
+local function applyBackdrop(frame, bgColor, borderColor, ornate)
     frame:SetBackdrop({
         bgFile   = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeFile = ornate and "Interface\\DialogFrame\\UI-DialogBox-Border"
+                           or "Interface\\Tooltips\\UI-Tooltip-Border",
         tile     = true,
         tileSize = 16,
-        edgeSize = 12,
+        edgeSize = ornate and 24 or 12,
         insets   = { left = 3, right = 3, top = 3, bottom = 3 },
     })
     frame:SetBackdropColor(bgColor.r, bgColor.g, bgColor.b, 1)
@@ -127,7 +136,7 @@ end
 
 local function buildD3Shape(parent, cx, cy, angleOffset)
     angleOffset = angleOffset or 0
-    local r = 36
+    local r = 44
     local points = drawPolygon(parent, cx, cy, r, 3, 1.8, 90 + angleOffset)
     drawLine(parent, cx, cy, points[1].x, points[1].y, 1.0)
     drawLine(parent, cx, cy, points[2].x, points[2].y, 1.0)
@@ -136,7 +145,7 @@ end
 
 local function buildD20Shape(parent, cx, cy, angleOffset)
     angleOffset = angleOffset or 0
-    local r = 36
+    local r = 44
     local outer = drawPolygon(parent, cx, cy, r, 5, 1.8, 90 + angleOffset)
     local inner = drawPolygon(parent, cx, cy, r * 0.45, 5, 1.0, -90 + angleOffset)
     for i = 1, 5 do
@@ -147,13 +156,13 @@ end
 
 local function buildD100Shape(parent, cx, cy, angleOffset)
     angleOffset = angleOffset or 0
-    drawPolygon(parent, cx, cy, 36, 12, 1.5, 90 + angleOffset)
-    drawPolygon(parent, cx, cy, 20, 12, 1.0, 90 + angleOffset)
+    drawPolygon(parent, cx, cy, 44, 12, 1.5, 90 + angleOffset)
+    drawPolygon(parent, cx, cy, 24, 12, 1.0, 90 + angleOffset)
 end
 
 local function buildD6Shape(parent, cx, cy, angleOffset)
     angleOffset = angleOffset or 0
-    drawPolygon(parent, cx, cy, 36, 4, 1.8, 45 + angleOffset)
+    drawPolygon(parent, cx, cy, 44, 4, 1.8, 45 + angleOffset)
 end
 
 local function showDieShape(dieType, resultLabel, angleOffset)
@@ -189,8 +198,8 @@ local function showD6Face(value)
     end
 
     local layout  = DOT_LAYOUTS[value]
-    local dotSize = 11
-    local cell    = 22
+    local dotSize = 12
+    local cell    = 26
 
     for _, pos in ipairs(layout) do
         local row, col = pos[1], pos[2]
@@ -198,11 +207,19 @@ local function showD6Face(value)
         local dot      = dots[idx]
         if dot then
             dot:ClearAllPoints()
-            dot:SetPoint("TOPLEFT", DR.UI.dieFace, "TOPLEFT", (col - 1) * cell + 13, -((row - 1) * cell + 13))
+            dot:SetPoint("TOPLEFT", DR.UI.dieFace, "TOPLEFT", (col - 1) * cell + 16, -((row - 1) * cell + 16))
             dot:SetSize(dotSize, dotSize)
             dot:Show()
         end
     end
+end
+
+local function isSoundEnabled()
+    return DiceRollerDB.soundEnabled ~= false
+end
+
+local function playSoundFile(path)
+    if path and isSoundEnabled() then pcall(PlaySoundFile, path) end
 end
 
 local function addHistoryEntry(who, dieType, modeName, value, isMine)
@@ -239,6 +256,12 @@ local function refreshHistory()
             row.whoLabel:SetText(entry.who)
             row.metaLabel:SetText(entry.mode)
             row.valLabel:SetText(tostring(entry.value))
+
+            if shown % 2 == 0 then
+                row.shade:Show()
+            else
+                row.shade:Hide()
+            end
         end
     end
     
@@ -296,7 +319,10 @@ local function onRoll()
     animState.totalRotation = 720 + math.random(0, 360)
     animFrame:SetScript("OnUpdate", onAnimUpdate)
 
+    playSoundFile(SOUND_ROLL_START[math.random(#SOUND_ROLL_START)])
+
     DR.UI.resultValue:SetText("—")
+    DR.UI.resultValue:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
     DR.UI.resultMode:SetText(activeMode .. " mode")
 
     DR.UI.dieFace:Hide()
@@ -309,12 +335,17 @@ local function buildHistoryRows(container)
     for i = 1, 20 do
         local row = CreateFrame("Frame", nil, container)
         row:SetHeight(20)
-        row:SetWidth(240)
+        row:SetWidth(300)
         row:Hide()
+
+        local shade = row:CreateTexture(nil, "BACKGROUND")
+        shade:SetAllPoints()
+        shade:SetColorTexture(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b, 0.06)
+        shade:Hide()
 
         local whoLabel = row:CreateFontString(nil, "OVERLAY")
         whoLabel:SetFont("Fonts\\FRIZQT__.TTF", 12)
-        whoLabel:SetPoint("LEFT", row, "LEFT", 0, 0)
+        whoLabel:SetPoint("LEFT", row, "LEFT", 4, 0)
 
         local metaLabel = row:CreateFontString(nil, "OVERLAY")
         metaLabel:SetFont("Fonts\\FRIZQT__.TTF", 11)
@@ -322,12 +353,13 @@ local function buildHistoryRows(container)
         metaLabel:SetPoint("CENTER", row, "CENTER", 0, 0)
 
         local valLabel = row:CreateFontString(nil, "OVERLAY")
-        valLabel:SetFont("Fonts\\MORPHEUS.TTF", 14)
-        valLabel:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+        valLabel:SetFont("Fonts\\MORPHEUS.TTF", 15)
+        valLabel:SetPoint("RIGHT", row, "RIGHT", -6, 0)
 
-        row.whoLabel  = whoLabel
-        row.metaLabel = metaLabel
-        row.valLabel  = valLabel
+        row.shade      = shade
+        row.whoLabel   = whoLabel
+        row.metaLabel  = metaLabel
+        row.valLabel   = valLabel
 
         rows[i] = row
     end
@@ -416,26 +448,25 @@ local function buildMainFrame()
         self:StopMovingOrSizing()
         savePosition(self)
     end)
-    applyBackdrop(frame, COLOR_BG_DARK, COLOR_GOLD)
+    applyBackdrop(frame, COLOR_BG_DARK, COLOR_GOLD, true)
     restorePosition(frame)
     frame:Hide()
 
     local header = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-    header:SetHeight(30)
-    header:SetPoint("TOPLEFT",  frame, "TOPLEFT",  0, 0)
-    header:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    header:SetHeight(36)
+    header:SetPoint("TOPLEFT",  frame, "TOPLEFT",  6, -6)
+    header:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -6)
     applyBackdrop(header, COLOR_BG_PANEL, COLOR_GOLD)
 
     local title = header:CreateFontString(nil, "OVERLAY")
-    title:SetFont("Fonts\\MORPHEUS.TTF", 14)
-    title:SetTextColor(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b)
+    title:SetFont("Fonts\\MORPHEUS.TTF", 17)
+    title:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
     title:SetText(L.TITLE)
     title:SetPoint("CENTER", header, "CENTER", -8, 0)
     
     local helpBtn = CreateFrame("Button", nil, header)
     helpBtn:SetSize(20, 20)
-    helpBtn:SetPoint("RIGHT", header, "RIGHT", -30, 0)
-    helpBtn:SetNormalTexture("Interface\\Common\\help-i")
+    helpBtn:SetPoint("RIGHT", header, "RIGHT", -30, 0)    helpBtn:SetNormalTexture("Interface\\Common\\help-i")
     helpBtn:SetHighlightTexture("Interface\\Common\\help-i")
     helpBtn:SetScript("OnClick", function() DR.UI.helpFrame:Show() end)
     helpBtn:SetScript("OnEnter", function(self)
@@ -445,28 +476,57 @@ local function buildMainFrame()
     end)
     helpBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeBtn:SetSize(24, 24)
-    closeBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    local soundBtn = CreateFrame("Button", nil, header)
+    soundBtn:SetSize(22, 22)
+    soundBtn:SetPoint("LEFT", header, "LEFT", 8, 0)
+
+    local function updateSoundIcon()
+        if isSoundEnabled() then
+            soundBtn:SetNormalTexture("Interface\\Common\\VoiceChat-Speaker")
+            soundBtn:SetHighlightTexture("Interface\\Common\\VoiceChat-Speaker")
+        else
+            soundBtn:SetNormalTexture("Interface\\Common\\VoiceChat-Muted")
+            soundBtn:SetHighlightTexture("Interface\\Common\\VoiceChat-Muted")
+        end
+    end
+
+    updateSoundIcon()
+
+    soundBtn:SetScript("OnClick", function()
+        DiceRollerDB.soundEnabled = not isSoundEnabled()
+        updateSoundIcon()
+    end)
+    soundBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine(isSoundEnabled() and L.SOUND_ON or L.SOUND_OFF,
+            COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+        GameTooltip:AddLine(L.SOUND_TOGGLE, 0.8, 0.8, 0.8)
+        GameTooltip:Show()
+    end)
+    soundBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    local closeBtn = CreateFrame("Button", nil, header, "UIPanelCloseButton")
+    closeBtn:SetSize(26, 26)
+    closeBtn:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, 0)
     closeBtn:SetScript("OnClick", function() frame:Hide() end)
 
     local tabRow = CreateFrame("Frame", nil, frame)
-    tabRow:SetHeight(28)
-    tabRow:SetPoint("TOPLEFT",  frame, "TOPLEFT",  6, -32)
-    tabRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -32)
+    tabRow:SetHeight(30)
+    tabRow:SetPoint("TOPLEFT",  frame, "TOPLEFT",  8, -50)
+    tabRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -50)
 
-    local tabWidth   = (FRAME_WIDTH - 12) / #DICE_TYPES
+    local tabWidth   = (FRAME_WIDTH - 16) / #DICE_TYPES
     local tabButtons = {}
 
     for i, dieType in ipairs(DICE_TYPES) do
         local btn = CreateFrame("Button", nil, tabRow, "BackdropTemplate")
-        btn:SetSize(tabWidth - 2, 26)
+        btn:SetSize(tabWidth - 2, 28)
         btn:SetPoint("LEFT", tabRow, "LEFT", (i - 1) * tabWidth, 0)
         btn.dieType = dieType
         applyBackdrop(btn, COLOR_BG_PANEL, COLOR_GOLD)
 
         local label = btn:CreateFontString(nil, "OVERLAY")
-        label:SetFont("Fonts\\MORPHEUS.TTF", 13)
+        label:SetFont("Fonts\\MORPHEUS.TTF", 14)
         label:SetPoint("CENTER", btn, "CENTER", 0, 0)
         label:SetText(dieType)
         btn.label = label
@@ -475,10 +535,10 @@ local function buildMainFrame()
         tabButtons[i] = btn
     end
 
-    local dieFaceTop = -68
+    local dieFaceTop = -94
 
     local dieFace = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-    dieFace:SetSize(80, 80)
+    dieFace:SetSize(96, 96)
     dieFace:SetPoint("TOP", frame, "TOP", 0, dieFaceTop)
     applyBackdrop(dieFace, COLOR_BG_PANEL, COLOR_GOLD)
 
@@ -486,36 +546,66 @@ local function buildMainFrame()
     for i = 1, 9 do
         local dot = dieFace:CreateTexture(nil, "OVERLAY")
         dot:SetColorTexture(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b, 1)
-        dot:SetSize(11, 11)
+        dot:SetSize(12, 12)
         dot:Hide()
         dots[i] = dot
     end
 
     local shapeCanvas = CreateFrame("Frame", nil, frame)
-    shapeCanvas:SetSize(80, 80)
+    shapeCanvas:SetSize(96, 96)
     shapeCanvas:SetPoint("TOP", frame, "TOP", 0, dieFaceTop)
     shapeCanvas:Hide()
 
     local shapeResultLabel = shapeCanvas:CreateFontString(nil, "OVERLAY")
-    shapeResultLabel:SetFont("Fonts\\MORPHEUS.TTF", 22)
+    shapeResultLabel:SetFont("Fonts\\MORPHEUS.TTF", 26)
     shapeResultLabel:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
     shapeResultLabel:SetPoint("CENTER", shapeCanvas, "CENTER", 0, 0)
     shapeResultLabel:Hide()
 
+    local fxGlow = frame:CreateTexture(nil, "OVERLAY")
+    fxGlow:SetTexture("Interface\\Cooldown\\star4")
+    fxGlow:SetBlendMode("ADD")
+    fxGlow:SetSize(220, 220)
+    fxGlow:SetPoint("TOP", frame, "TOP", 0, dieFaceTop - 48)
+    fxGlow:SetAlpha(0)
+    fxGlow:Hide()
+
+    local glowAnim = fxGlow:CreateAnimationGroup()
+    local glowFade = glowAnim:CreateAnimation("Alpha")
+    glowFade:SetFromAlpha(0.9)
+    glowFade:SetToAlpha(0)
+    glowFade:SetDuration(1.0)
+    glowFade:SetSmoothing("OUT")
+    glowAnim:SetScript("OnFinished", function() fxGlow:Hide() end)
+
+    local shakeAnim = frame:CreateAnimationGroup()
+    for i = 0, 5 do
+        local shake = shakeAnim:CreateAnimation("Translation")
+        shake:SetOffset((i % 2 == 0) and -5 or 5, 0)
+        shake:SetDuration(0.05)
+        shake:SetStartDelay(i * 0.05)
+        shake:SetSmoothing("NONE")
+    end
+
+    DR.UI.fxGlow    = fxGlow
+    DR.UI.glowAnim  = glowAnim
+    DR.UI.glowFade  = glowFade
+    DR.UI.shakeAnim = shakeAnim
+
     local resultArea = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-    resultArea:SetHeight(78)
-    resultArea:SetPoint("TOPLEFT",  frame, "TOPLEFT",  8, -158)
-    resultArea:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -158)
+    resultArea:SetHeight(90)
+    resultArea:SetPoint("TOPLEFT",  frame, "TOPLEFT",  10, -204)
+    resultArea:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -204)
     applyBackdrop(resultArea, COLOR_BG_PANEL, COLOR_GOLD)
 
     local resultLabel = resultArea:CreateFontString(nil, "OVERLAY")
-    resultLabel:SetFont("Fonts\\MORPHEUS.TTF", 10)
+    resultLabel:SetFont("Fonts\\MORPHEUS.TTF", 11)
     resultLabel:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
     resultLabel:SetText(L.RESULT)
-    resultLabel:SetPoint("TOP", resultArea, "TOP", 0, -6)
+    resultLabel:SetPoint("TOP", resultArea, "TOP", 0, -7)
 
     local resultValue = resultArea:CreateFontString(nil, "OVERLAY")
-    resultValue:SetFont("Fonts\\MORPHEUS.TTF", 40)
+    resultValue:SetFont("Fonts\\MORPHEUS.TTF", 46)
     resultValue:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
     resultValue:SetText("—")
     resultValue:SetPoint("CENTER", resultArea, "CENTER", 0, -4)
@@ -527,9 +617,9 @@ local function buildMainFrame()
     resultMode:SetPoint("BOTTOM", resultArea, "BOTTOM", 0, 6)
 
     local modeRow = CreateFrame("Frame", nil, frame)
-    modeRow:SetHeight(28)
-    modeRow:SetPoint("TOPLEFT",  frame, "TOPLEFT",  8, -244)
-    modeRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -244)
+    modeRow:SetHeight(30)
+    modeRow:SetPoint("TOPLEFT",  frame, "TOPLEFT",  10, -306)
+    modeRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -306)
 
     local modeLabel = modeRow:CreateFontString(nil, "OVERLAY")
     modeLabel:SetFont("Fonts\\MORPHEUS.TTF", 11)
@@ -560,34 +650,36 @@ local function buildMainFrame()
     end)
 
     local rollBtn = CreateFrame("Button", nil, frame, "BackdropTemplate")
-    rollBtn:SetHeight(36)
-    rollBtn:SetPoint("TOPLEFT",  frame, "TOPLEFT",  8, -280)
-    rollBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -280)
+    rollBtn:SetHeight(42)
+    rollBtn:SetPoint("TOPLEFT",  frame, "TOPLEFT",  10, -348)
+    rollBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -348)
     applyBackdrop(rollBtn, COLOR_BG_PANEL, COLOR_GOLD)
 
     local rollLabel = rollBtn:CreateFontString(nil, "OVERLAY")
-    rollLabel:SetFont("Fonts\\MORPHEUS.TTF", 14)
+    rollLabel:SetFont("Fonts\\MORPHEUS.TTF", 16)
     rollLabel:SetTextColor(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b)
     rollLabel:SetText(L.ROLL_BUTTON)
     rollLabel:SetPoint("CENTER", rollBtn, "CENTER", 0, 0)
 
     rollBtn:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(0.15, 0.12, 0.06, 1)
+        self:SetBackdropColor(0.18, 0.14, 0.07, 1)
+        rollLabel:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
     end)
     rollBtn:SetScript("OnLeave", function(self)
         self:SetBackdropColor(COLOR_BG_PANEL.r, COLOR_BG_PANEL.g, COLOR_BG_PANEL.b, 1)
+        rollLabel:SetTextColor(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b)
     end)
     rollBtn:SetScript("OnClick", onRoll)
 
     local historyHeader = frame:CreateFontString(nil, "OVERLAY")
-    historyHeader:SetFont("Fonts\\MORPHEUS.TTF", 10)
+    historyHeader:SetFont("Fonts\\MORPHEUS.TTF", 11)
     historyHeader:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
     historyHeader:SetText(L.HISTORY)
-    historyHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -326)
+    historyHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -402)
 
     local clearHistoryBtn = CreateFrame("Button", nil, frame)
     clearHistoryBtn:SetSize(16, 16)
-    clearHistoryBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -14, -324)
+    clearHistoryBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -16, -400)
     clearHistoryBtn:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
     clearHistoryBtn:SetHighlightTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
     clearHistoryBtn:SetPushedTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Down")
@@ -602,16 +694,16 @@ local function buildMainFrame()
 
     local divider = frame:CreateTexture(nil, "ARTWORK")
     divider:SetHeight(1)
-    divider:SetColorTexture(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b, 0.4)
-    divider:SetPoint("TOPLEFT",  frame, "TOPLEFT",  8,  -338)
-    divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -338)
+    divider:SetColorTexture(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b, 0.35)
+    divider:SetPoint("TOPLEFT",  frame, "TOPLEFT",  10, -414)
+    divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -414)
 
     local historyScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    historyScroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -344)
-    historyScroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -32, 12)
-    
+    historyScroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -420)
+    historyScroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -34, 14)
+
     local historyScrollChild = CreateFrame("Frame", nil, historyScroll)
-    historyScrollChild:SetSize(260, 110)
+    historyScrollChild:SetSize(310, 110)
     historyScroll:SetScrollChild(historyScrollChild)
 
     DR.UI.frame               = frame
@@ -741,6 +833,36 @@ onAnimUpdate = function(self, elapsed)
             DR.UI.shapeResultLabel:SetText(tostring(animState.finalResult))
         end
         DR.UI.resultValue:SetText(tostring(animState.finalResult))
+
+        playSoundFile(SOUND_ROLL_END[math.random(#SOUND_ROLL_END)])
+
+        local sides   = tonumber(activeDie:sub(2))
+        local isCrit  = animState.finalResult == sides
+        local isFail  = animState.finalResult == 1
+
+        if isCrit then
+            DR.UI.resultValue:SetTextColor(COLOR_RESULT_CRIT.r, COLOR_RESULT_CRIT.g, COLOR_RESULT_CRIT.b)
+            DR.UI.fxGlow:SetVertexColor(COLOR_RESULT_CRIT.r, COLOR_RESULT_CRIT.g, COLOR_RESULT_CRIT.b, 1)
+            DR.UI.fxGlow:Show()
+            DR.UI.glowFade:SetFromAlpha(0.9)
+            DR.UI.shakeAnim:Stop()
+            DR.UI.glowAnim:Stop()
+            DR.UI.glowAnim:Play()
+            DR.UI.shakeAnim:Play()
+            playSoundFile(SOUND_CRIT)
+        elseif isFail then
+            DR.UI.resultValue:SetTextColor(COLOR_RESULT_FAIL.r, COLOR_RESULT_FAIL.g, COLOR_RESULT_FAIL.b)
+            DR.UI.fxGlow:SetVertexColor(COLOR_RESULT_FAIL.r, COLOR_RESULT_FAIL.g, COLOR_RESULT_FAIL.b, 1)
+            DR.UI.fxGlow:Show()
+            DR.UI.glowFade:SetFromAlpha(0.4)
+            DR.UI.glowAnim:Stop()
+            DR.UI.glowAnim:Play()
+            DR.UI.shakeAnim:Stop()
+            DR.UI.shakeAnim:Play()
+            playSoundFile(SOUND_FAIL)
+        else
+            DR.UI.resultValue:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+        end
 
         local playerName = UnitName("player")
         addHistoryEntry(playerName, activeDie, activeMode, animState.finalResult, true)

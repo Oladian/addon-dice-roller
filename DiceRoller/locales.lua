@@ -20,6 +20,11 @@ local L = {
     TOOLTIP_TITLE = "Dice Roller",
     TOOLTIP_CLICK = "Click to toggle",
     TOOLTIP_HELP = "Right-click for help",
+
+    -- Sound toggle
+    SOUND_ON = "Sound: ON",
+    SOUND_OFF = "Sound: OFF",
+    SOUND_TOGGLE = "Click to toggle dice audio",
     
     -- Help Window
     HELP_TITLE = "Dice Roller - Help",
@@ -58,6 +63,10 @@ if locale == "esES" or locale == "esMX" then
     L.TOOLTIP_TITLE = "Tirador de Dados"
     L.TOOLTIP_CLICK = "Clic para abrir/cerrar"
     L.TOOLTIP_HELP = "Clic derecho para ayuda"
+
+    L.SOUND_ON = "Sonido: ACTIVADO"
+    L.SOUND_OFF = "Sonido: DESACTIVADO"
+    L.SOUND_TOGGLE = "Clic para activar/desactivar el audio de los dados"
     
     L.HELP_TITLE = "Tirador de Dados - Ayuda"
     L.HELP_FEATURES = "Características"
