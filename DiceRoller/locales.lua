@@ -25,6 +25,10 @@ local L = {
     SOUND_ON = "Sound: ON",
     SOUND_OFF = "Sound: OFF",
     SOUND_TOGGLE = "Click to toggle dice audio",
+
+    -- Modifier
+    MODIFIER = "MODIFIER",
+    MODIFIER_TOOLTIP = "Left-click: ±1 | Shift-click: ±5",
     
     -- Help Window
     HELP_TITLE = "Dice Roller - Help",
@@ -67,6 +71,9 @@ if locale == "esES" or locale == "esMX" then
     L.SOUND_ON = "Sonido: ACTIVADO"
     L.SOUND_OFF = "Sonido: DESACTIVADO"
     L.SOUND_TOGGLE = "Clic para activar/desactivar el audio de los dados"
+
+    L.MODIFIER = "MODIFICADOR"
+    L.MODIFIER_TOOLTIP = "Clic: ±1 | Mayús+clic: ±5"
     
     L.HELP_TITLE = "Tirador de Dados - Ayuda"
     L.HELP_FEATURES = "Características"

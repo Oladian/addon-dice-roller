@@ -10,7 +10,7 @@ local COLOR_BG_PANEL    = { r = 0.07, g = 0.05, b = 0.03 }
 local COLOR_TEXT_MUTED  = { r = 0.48, g = 0.39, b = 0.21 }
 
 local FRAME_WIDTH  = 360
-local FRAME_HEIGHT = 540
+local FRAME_HEIGHT = 580
 
 local DICE_TYPES = { "D3", "D6", "D20", "D100" }
 
@@ -47,6 +47,7 @@ DiceRollerDB = DiceRollerDB or {}
 
 local activeDie  = "D6"
 local activeMode = "normal"
+local activeModifier = 0
 local history    = {}
 local dots       = {}
 local shapeLines = {}
@@ -310,11 +311,13 @@ end
 
 local function onRoll()
     local sides  = tonumber(activeDie:sub(2))
-    local result = DR:Roll(sides)
+    local naturalRoll = DR:Roll(sides)
+    local result = math.max(1, naturalRoll + activeModifier)
 
     animState.active = true
     animState.elapsed = 0
     animState.finalResult = result
+    animState.naturalRoll = naturalRoll
     animState.currentAngle = 0
     animState.totalRotation = 720 + math.random(0, 360)
     animFrame:SetScript("OnUpdate", onAnimUpdate)
@@ -323,7 +326,8 @@ local function onRoll()
 
     DR.UI.resultValue:SetText("—")
     DR.UI.resultValue:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
-    DR.UI.resultMode:SetText(activeMode .. " mode")
+    local modTag = (activeModifier ~= 0) and string.format(" %+d", activeModifier) or ""
+    DR.UI.resultMode:SetText(activeMode .. " mode" .. modTag)
 
     DR.UI.dieFace:Hide()
     showDieShape(activeDie, DR.UI.shapeResultLabel, 0)
@@ -649,10 +653,76 @@ local function buildMainFrame()
         end
     end)
 
+    local modRow = CreateFrame("Frame", nil, frame)
+    modRow:SetHeight(28)
+    modRow:SetPoint("TOPLEFT",  frame, "TOPLEFT",  10, -344)
+    modRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -344)
+
+    local modLabel = modRow:CreateFontString(nil, "OVERLAY")
+    modLabel:SetFont("Fonts\\MORPHEUS.TTF", 11)
+    modLabel:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
+    modLabel:SetText(L.MODIFIER)
+    modLabel:SetPoint("LEFT", modRow, "LEFT", 4, 0)
+
+    local modValue = modRow:CreateFontString(nil, "OVERLAY")
+    modValue:SetFont("Fonts\\MORPHEUS.TTF", 14)
+    modValue:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+    modValue:SetWidth(50)
+    modValue:SetJustifyH("CENTER")
+
+    local function setModifier(value)
+        activeModifier        = math.max(-999, math.min(999, value))
+        DiceRollerDB.modifier = activeModifier
+        if activeModifier > 0 then
+            modValue:SetText(string.format("+%d", activeModifier))
+        else
+            modValue:SetText(tostring(activeModifier))
+        end
+    end
+
+    setModifier(DiceRollerDB.modifier or 0)
+
+    local function makeModButton(text, relativeTo, point, relativePoint, offsetX)
+        local btn = CreateFrame("Button", nil, modRow, "BackdropTemplate")
+        btn:SetSize(26, 24)
+        btn:SetPoint(point, relativeTo, relativePoint, offsetX, 0)
+        applyBackdrop(btn, COLOR_BG_PANEL, COLOR_GOLD)
+
+        local label = btn:CreateFontString(nil, "OVERLAY")
+        label:SetFont("Fonts\\MORPHEUS.TTF", 15)
+        label:SetTextColor(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b)
+        label:SetText(text)
+        label:SetPoint("CENTER", btn, "CENTER", 0, 0)
+
+        local stepUp = text == "+"
+
+        btn:SetScript("OnClick", function()
+            local step = IsShiftKeyDown() and 5 or 1
+            setModifier(activeModifier + (stepUp and step or -step))
+        end)
+
+        btn:SetScript("OnEnter", function(self)
+            self:SetBackdropColor(0.18, 0.14, 0.07, 1)
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:AddLine(L.MODIFIER_TOOLTIP, 0.8, 0.8, 0.8)
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function(self)
+            self:SetBackdropColor(COLOR_BG_PANEL.r, COLOR_BG_PANEL.g, COLOR_BG_PANEL.b, 1)
+            GameTooltip:Hide()
+        end)
+
+        return btn
+    end
+
+    local modMinus = makeModButton("-", modRow, "LEFT", "LEFT", 130)
+    modValue:SetPoint("LEFT", modMinus, "RIGHT", 6, 0)
+    makeModButton("+", modValue, "LEFT", "RIGHT", 6)
+
     local rollBtn = CreateFrame("Button", nil, frame, "BackdropTemplate")
     rollBtn:SetHeight(42)
-    rollBtn:SetPoint("TOPLEFT",  frame, "TOPLEFT",  10, -348)
-    rollBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -348)
+    rollBtn:SetPoint("TOPLEFT",  frame, "TOPLEFT",  10, -380)
+    rollBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -380)
     applyBackdrop(rollBtn, COLOR_BG_PANEL, COLOR_GOLD)
 
     local rollLabel = rollBtn:CreateFontString(nil, "OVERLAY")
@@ -675,11 +745,11 @@ local function buildMainFrame()
     historyHeader:SetFont("Fonts\\MORPHEUS.TTF", 11)
     historyHeader:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
     historyHeader:SetText(L.HISTORY)
-    historyHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -402)
+    historyHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -432)
 
     local clearHistoryBtn = CreateFrame("Button", nil, frame)
     clearHistoryBtn:SetSize(16, 16)
-    clearHistoryBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -16, -400)
+    clearHistoryBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -16, -430)
     clearHistoryBtn:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
     clearHistoryBtn:SetHighlightTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
     clearHistoryBtn:SetPushedTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Down")
@@ -695,11 +765,11 @@ local function buildMainFrame()
     local divider = frame:CreateTexture(nil, "ARTWORK")
     divider:SetHeight(1)
     divider:SetColorTexture(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b, 0.35)
-    divider:SetPoint("TOPLEFT",  frame, "TOPLEFT",  10, -414)
-    divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -414)
+    divider:SetPoint("TOPLEFT",  frame, "TOPLEFT",  10, -444)
+    divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -444)
 
     local historyScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    historyScroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -420)
+    historyScroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -450)
     historyScroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -34, 14)
 
     local historyScrollChild = CreateFrame("Frame", nil, historyScroll)
@@ -828,17 +898,17 @@ onAnimUpdate = function(self, elapsed)
 
     if progress >= 1.0 then
         if activeDie == "D6" then
-            showD6Face(animState.finalResult)
+            showD6Face(animState.naturalRoll)
         else
-            DR.UI.shapeResultLabel:SetText(tostring(animState.finalResult))
+            DR.UI.shapeResultLabel:SetText(tostring(animState.naturalRoll))
         end
         DR.UI.resultValue:SetText(tostring(animState.finalResult))
 
         playSoundFile(SOUND_ROLL_END[math.random(#SOUND_ROLL_END)])
 
         local sides   = tonumber(activeDie:sub(2))
-        local isCrit  = animState.finalResult == sides
-        local isFail  = animState.finalResult == 1
+        local isCrit  = animState.naturalRoll == sides
+        local isFail  = animState.naturalRoll == 1
 
         if isCrit then
             DR.UI.resultValue:SetTextColor(COLOR_RESULT_CRIT.r, COLOR_RESULT_CRIT.g, COLOR_RESULT_CRIT.b)
@@ -865,7 +935,11 @@ onAnimUpdate = function(self, elapsed)
         end
 
         local playerName = UnitName("player")
-        addHistoryEntry(playerName, activeDie, activeMode, animState.finalResult, true)
+        local histMode = activeMode
+        if activeModifier ~= 0 then
+            histMode = string.format("%s %+d", histMode, activeModifier)
+        end
+        addHistoryEntry(playerName, activeDie, histMode, animState.finalResult, true)
         refreshHistory()
 
         if IsInGroup() then
@@ -890,6 +964,8 @@ loader:SetScript("OnEvent", function(self, event, addonName)
         activeMode = DiceRollerDB.mode
         DR.mode    = DiceRollerDB.mode
     end
+
+    activeModifier = math.max(-999, math.min(999, DiceRollerDB.modifier or 0))
 
     buildHelpFrame()
     buildMainFrame()
