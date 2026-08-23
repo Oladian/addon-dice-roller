@@ -174,6 +174,10 @@ local function showDieShape(dieType, resultLabel, angleOffset)
     canvas:Show()
     resultLabel:Show()
 
+    for _, dot in ipairs(dots) do
+        dot:Hide()
+    end
+
     local cx = canvas:GetWidth()  / 2
     local cy = canvas:GetHeight() / 2
 
@@ -188,28 +192,47 @@ local function showDieShape(dieType, resultLabel, angleOffset)
     end
 end
 
-local function showD6Face(value)
+local function showD6Face(value, angleOffset)
+    DR.UI.shapeResultLabel:Hide()
+
+    local canvas = DR.UI.shapeCanvas
     clearShapeLines()
 
-    DR.UI.dieFace:Show()
-    DR.UI.shapeCanvas:Hide()
-    DR.UI.shapeResultLabel:Hide()
+    local w  = canvas:GetWidth()
+    local h  = canvas:GetHeight()
+    local cx = w / 2
+    local cy = h / 2
+
+    buildD6Shape(canvas, cx, cy, angleOffset)
+
     for _, dot in ipairs(dots) do
         dot:Hide()
     end
 
-    local layout  = DOT_LAYOUTS[value]
-    local dotSize = 12
-    local cell    = 26
+    local theta = math.rad(angleOffset % 360)
+    local cosT  = math.cos(theta)
+    local sinT  = math.sin(theta)
+
+    local layout    = DOT_LAYOUTS[value]
+    local pipOffset = 19
+    local dotSize   = 11
 
     for _, pos in ipairs(layout) do
         local row, col = pos[1], pos[2]
         local idx      = (row - 1) * 3 + col
         local dot      = dots[idx]
         if dot then
-            dot:ClearAllPoints()
-            dot:SetPoint("TOPLEFT", DR.UI.dieFace, "TOPLEFT", (col - 1) * cell + 16, -((row - 1) * cell + 16))
+            local dx = (col - 2) * pipOffset
+            local dy = (2 - row) * pipOffset
+
+            local rx = cx + dx * cosT - dy * sinT
+            local ry = cy + dx * sinT + dy * cosT
+
             dot:SetSize(dotSize, dotSize)
+            dot:SetAlpha(1)
+            dot:SetRotation(theta)
+            dot:ClearAllPoints()
+            dot:SetPoint("CENTER", canvas, "BOTTOMLEFT", rx, ry)
             dot:Show()
         end
     end
@@ -301,7 +324,6 @@ local function selectTab(dieType)
         end
     end
 
-    DR.UI.dieFace:Hide()
     showDieShape(dieType, DR.UI.shapeResultLabel, 0)
     DR.UI.shapeResultLabel:SetText("—")
 
@@ -329,9 +351,11 @@ local function onRoll()
     local modTag = (activeModifier ~= 0) and string.format(" %+d", activeModifier) or ""
     DR.UI.resultMode:SetText(activeMode .. " mode" .. modTag)
 
-    DR.UI.dieFace:Hide()
     showDieShape(activeDie, DR.UI.shapeResultLabel, 0)
-    DR.UI.shapeResultLabel:SetText("—")
+    for _, dot in ipairs(dots) do
+        dot:Hide()
+    end
+    DR.UI.shapeResultLabel:Hide()
 end
 
 local function buildHistoryRows(container)
@@ -541,24 +565,19 @@ local function buildMainFrame()
 
     local dieFaceTop = -94
 
-    local dieFace = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-    dieFace:SetSize(96, 96)
-    dieFace:SetPoint("TOP", frame, "TOP", 0, dieFaceTop)
-    applyBackdrop(dieFace, COLOR_BG_PANEL, COLOR_GOLD)
-
-    dots = {}
-    for i = 1, 9 do
-        local dot = dieFace:CreateTexture(nil, "OVERLAY")
-        dot:SetColorTexture(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b, 1)
-        dot:SetSize(12, 12)
-        dot:Hide()
-        dots[i] = dot
-    end
-
     local shapeCanvas = CreateFrame("Frame", nil, frame)
     shapeCanvas:SetSize(96, 96)
     shapeCanvas:SetPoint("TOP", frame, "TOP", 0, dieFaceTop)
-    shapeCanvas:Hide()
+    shapeCanvas:Show()
+
+    dots = {}
+    for i = 1, 9 do
+        local dot = shapeCanvas:CreateTexture(nil, "OVERLAY")
+        dot:SetColorTexture(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b, 1)
+        dot:SetSize(11, 11)
+        dot:Hide()
+        dots[i] = dot
+    end
 
     local shapeResultLabel = shapeCanvas:CreateFontString(nil, "OVERLAY")
     shapeResultLabel:SetFont("Fonts\\MORPHEUS.TTF", 26)
@@ -778,7 +797,7 @@ local function buildMainFrame()
 
     DR.UI.frame               = frame
     DR.UI.tabButtons          = tabButtons
-    DR.UI.dieFace             = dieFace
+    DR.UI.dieFace             = nil
     DR.UI.shapeCanvas         = shapeCanvas
     DR.UI.shapeResultLabel    = shapeResultLabel
     DR.UI.resultValue         = resultValue
@@ -898,7 +917,7 @@ onAnimUpdate = function(self, elapsed)
 
     if progress >= 1.0 then
         if activeDie == "D6" then
-            showD6Face(animState.naturalRoll)
+            showD6Face(animState.naturalRoll, animState.totalRotation % 360)
         else
             DR.UI.shapeResultLabel:SetText(tostring(animState.naturalRoll))
         end
