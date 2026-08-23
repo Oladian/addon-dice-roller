@@ -12,13 +12,16 @@ local COLOR_TEXT_MUTED  = { r = 0.48, g = 0.39, b = 0.21 }
 local FRAME_WIDTH  = 360
 local FRAME_HEIGHT = 620
 
-local DICE_TYPES = { "D3", "D6", "D20", "D100" }
+local DICE_TYPES = { "D2", "D3", "D6", "D8", "D10", "D20", "D100" }
 
 local MODES = { "normal", "norepeat", "smooth", "deck", "advantage" }
 
 local MODES_BY_DIE = {
+    D2   = { normal = true, smooth = true },
     D3   = { normal = true, smooth = true, advantage = true },
     D6   = { normal = true, norepeat = true, smooth = true, deck = true, advantage = true },
+    D8   = { normal = true, norepeat = true, smooth = true, deck = true, advantage = true },
+    D10  = { normal = true, norepeat = true, smooth = true, deck = true, advantage = true },
     D20  = { normal = true, norepeat = true, smooth = true, deck = true, advantage = true },
     D100 = { normal = true, norepeat = true, smooth = true, advantage = true },
 }
@@ -166,6 +169,25 @@ local function buildD6Shape(parent, cx, cy, angleOffset)
     drawPolygon(parent, cx, cy, 44, 4, 1.8, 45 + angleOffset)
 end
 
+local function buildD2Shape(parent, cx, cy, angleOffset)
+    angleOffset = angleOffset or 0
+    drawPolygon(parent, cx, cy, 44, 24, 1.8, angleOffset)
+    drawPolygon(parent, cx, cy, 32, 24, 0.9, angleOffset)
+end
+
+local function buildD8Shape(parent, cx, cy, angleOffset)
+    angleOffset = angleOffset or 0
+    local points = drawPolygon(parent, cx, cy, 44, 4, 1.8, 90 + angleOffset)
+    drawLine(parent, points[2].x, points[2].y, points[4].x, points[4].y, 0.9)
+end
+
+local function buildD10Shape(parent, cx, cy, angleOffset)
+    angleOffset = angleOffset or 0
+    local points = drawPolygon(parent, cx, cy, 44, 4, 1.8, 90 + angleOffset)
+    drawLine(parent, points[2].x, points[2].y, points[4].x, points[4].y, 0.9)
+    drawLine(parent, points[1].x, points[1].y, points[3].x, points[3].y, 0.9)
+end
+
 local function showDieShape(dieType, resultLabel, angleOffset)
     angleOffset = angleOffset or 0
     clearShapeLines()
@@ -181,10 +203,16 @@ local function showDieShape(dieType, resultLabel, angleOffset)
     local cx = canvas:GetWidth()  / 2
     local cy = canvas:GetHeight() / 2
 
-    if dieType == "D3" then
+    if dieType == "D2" then
+        buildD2Shape(canvas, cx, cy, angleOffset)
+    elseif dieType == "D3" then
         buildD3Shape(canvas, cx, cy, angleOffset)
     elseif dieType == "D6" then
         buildD6Shape(canvas, cx, cy, angleOffset)
+    elseif dieType == "D8" then
+        buildD8Shape(canvas, cx, cy, angleOffset)
+    elseif dieType == "D10" then
+        buildD10Shape(canvas, cx, cy, angleOffset)
     elseif dieType == "D20" then
         buildD20Shape(canvas, cx, cy, angleOffset)
     elseif dieType == "D100" then
@@ -1126,8 +1154,9 @@ onAnimUpdate = function(self, elapsed)
         playSoundFile(SOUND_ROLL_END[math.random(#SOUND_ROLL_END)])
 
         local sides   = tonumber(activeDie:sub(2))
-        local isCrit  = animState.naturalRoll == sides
-        local isFail  = animState.naturalRoll == 1
+        local hasCrit = sides > 3
+        local isCrit  = hasCrit and animState.naturalRoll == sides
+        local isFail  = hasCrit and animState.naturalRoll == 1
 
         if isCrit then
             DR.UI.resultValue:SetTextColor(COLOR_RESULT_CRIT.r, COLOR_RESULT_CRIT.g, COLOR_RESULT_CRIT.b)
