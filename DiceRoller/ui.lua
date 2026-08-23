@@ -41,6 +41,7 @@ local MINIMAP_BUTTON_SIZE = 28
 local SOUND_ROLL_START = { "840222", "840224", "840226", "840228", "840230", "840232" }
 local SOUND_ROLL_END   = { "1668195", "1668196", "1668197", "1668198", "1668199", "1668200" }
 local SOUND_CRIT       = "1489461"
+local SOUND_COIN_TOSS  = { "942678", "942680", "942682", "942684", "942686", "942688", "942690", "942692", "942694", "942696" }
 local SOUND_FAIL       = "569773"
 
 local COLOR_RESULT_CRIT = { r = 1.00, g = 0.84, b = 0.25 }
@@ -171,17 +172,17 @@ end
 
 local function buildD2Shape(parent, cx, cy, angleOffset)
     angleOffset = angleOffset or 0
-    drawPolygon(parent, cx, cy, 44, 24, 1.8, angleOffset)
-    drawPolygon(parent, cx, cy, 32, 24, 0.9, angleOffset)
+    drawPolygon(parent, cx, cy, 44, 32, 1.8, angleOffset)
+    drawPolygon(parent, cx, cy, 32, 32, 1.2, angleOffset)
 end
 
-local function drawEllipse(parent, cx, cy, radius, sides, thickness, scaleX)
+local function drawEllipse(parent, cx, cy, radius, sides, thickness, scaleX, scaleY)
     local pts = {}
     for i = 0, sides - 1 do
         local a = math.rad(360 / sides * i)
         pts[i + 1] = {
             x = cx + radius * (scaleX or 1) * math.cos(a),
-            y = cy + radius * math.sin(a),
+            y = cy + radius * (scaleY or 1) * math.sin(a),
         }
     end
     for i = 1, sides do
@@ -192,22 +193,37 @@ end
 
 local function buildD2FlipShape(parent, cx, cy, phaseDeg)
     local squash = math.abs(math.cos(math.rad(phaseDeg)))
-    if squash < 0.10 then squash = 0.10 end
-    drawEllipse(parent, cx, cy, 44, 24, 1.8, squash)
-    drawEllipse(parent, cx, cy, 32, 24, 0.9, squash)
+    if squash < 0.12 then squash = 0.12 end
+    drawEllipse(parent, cx, cy, 44, 28, 1.8, 1, squash)
+    if squash > 0.35 then
+        drawEllipse(parent, cx, cy, 32, 28, 0.9, 1, squash)
+    end
 end
 
 local function buildD8Shape(parent, cx, cy, angleOffset)
     angleOffset = angleOffset or 0
     local points = drawPolygon(parent, cx, cy, 44, 4, 1.8, 90 + angleOffset)
-    drawLine(parent, points[2].x, points[2].y, points[4].x, points[4].y, 0.9)
+    drawLine(parent, points[2].x, points[2].y, points[4].x, points[4].y, 1.2)
 end
 
 local function buildD10Shape(parent, cx, cy, angleOffset)
     angleOffset = angleOffset or 0
     local points = drawPolygon(parent, cx, cy, 44, 4, 1.8, 90 + angleOffset)
-    drawLine(parent, points[2].x, points[2].y, points[4].x, points[4].y, 0.9)
-    drawLine(parent, points[1].x, points[1].y, points[3].x, points[3].y, 0.9)
+    drawLine(parent, points[2].x, points[2].y, points[4].x, points[4].y, 1.2)
+    drawLine(parent, points[1].x, points[1].y, points[3].x, points[3].y, 1.2)
+end
+
+local function buildCustomShape(parent, cx, cy, angleOffset)
+    angleOffset = angleOffset or 0
+    drawPolygon(parent, cx, cy, 44, 16, 1.8, 90 + angleOffset)
+    drawPolygon(parent, cx, cy, 28, 16, 1.0, 90 + angleOffset)
+end
+
+local function buildCustomMorphShape(parent, cx, cy, angleOffset)
+    angleOffset = angleOffset or 0
+    local sides = 3 + math.floor((angleOffset % 180) / 15)
+    drawPolygon(parent, cx, cy, 44, sides, 1.8, 90 + angleOffset)
+    drawPolygon(parent, cx, cy, 26, sides, 1.0, -90 - angleOffset)
 end
 
 local function showDieShape(dieType, resultLabel, angleOffset, isFlipping)
@@ -243,6 +259,15 @@ local function showDieShape(dieType, resultLabel, angleOffset, isFlipping)
         buildD20Shape(canvas, cx, cy, angleOffset)
     elseif dieType == "D100" then
         buildD100Shape(canvas, cx, cy, angleOffset)
+    else
+        local n = tonumber(dieType:match("^D(%d+)$"))
+        if n then
+            if isFlipping then
+                buildCustomMorphShape(canvas, cx, cy, angleOffset)
+            else
+                buildCustomShape(canvas, cx, cy, angleOffset)
+            end
+        end
     end
 end
 
@@ -301,6 +326,7 @@ local function playSoundFile(path)
 end
 
 local refreshProfiles
+local selectCustom
 
 local function saveProfile(name)
     DiceRollerDB.profiles      = DiceRollerDB.profiles or {}
@@ -382,12 +408,20 @@ end
 
 local function refreshModeDropdown()
     local allowed = MODES_BY_DIE[activeDie]
+    if not allowed then
+        allowed = { normal = true, norepeat = true, smooth = true, deck = true, advantage = true }
+    end
     if not allowed[activeMode] then
         activeMode        = "normal"
         DR.mode           = "normal"
         DiceRollerDB.mode = "normal"
     end
     UIDropDownMenu_SetText(DR.UI.modeDropdown, activeMode)
+end
+
+local function isCustomDie(dieType)
+    local n = tonumber(dieType:match("^D(%d+)$"))
+    return n ~= nil and MODES_BY_DIE[dieType] == nil
 end
 
 local function selectTab(dieType)
@@ -405,6 +439,21 @@ local function selectTab(dieType)
             btn:SetBackdropColor(COLOR_BG_PANEL.r, COLOR_BG_PANEL.g, COLOR_BG_PANEL.b, 1)
             btn.label:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
         end
+    end
+
+    local customTab = DR.UI.customTabButton
+    if customTab then
+        if isCustomDie(dieType) then
+            customTab:SetBackdropColor(COLOR_BG_DARK.r, COLOR_BG_DARK.g, COLOR_BG_DARK.b, 1)
+            customTab.label:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+        else
+            customTab:SetBackdropColor(COLOR_BG_PANEL.r, COLOR_BG_PANEL.g, COLOR_BG_PANEL.b, 1)
+            customTab.label:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
+        end
+    end
+
+    if DR.UI.setCustomVisibility then
+        DR.UI.setCustomVisibility(isCustomDie(dieType))
     end
 
     showDieShape(dieType, DR.UI.shapeResultLabel, 0)
@@ -427,7 +476,11 @@ local function onRoll()
     animState.totalRotation = 720 + math.random(0, 360)
     animFrame:SetScript("OnUpdate", onAnimUpdate)
 
-    playSoundFile(SOUND_ROLL_START[math.random(#SOUND_ROLL_START)])
+    if activeDie == "D2" then
+        playSoundFile(SOUND_COIN_TOSS[math.random(#SOUND_COIN_TOSS)])
+    else
+        playSoundFile(SOUND_ROLL_START[math.random(#SOUND_ROLL_START)])
+    end
 
     DR.UI.resultValue:SetText("—")
     DR.UI.resultValue:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
@@ -626,7 +679,7 @@ local function buildMainFrame()
     tabRow:SetPoint("TOPLEFT",  frame, "TOPLEFT",  8, -50)
     tabRow:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -50)
 
-    local tabWidth   = (FRAME_WIDTH - 16) / #DICE_TYPES
+    local tabWidth   = (FRAME_WIDTH - 16) / (#DICE_TYPES + 1)
     local tabButtons = {}
 
     for i, dieType in ipairs(DICE_TYPES) do
@@ -637,7 +690,7 @@ local function buildMainFrame()
         applyBackdrop(btn, COLOR_BG_PANEL, COLOR_GOLD)
 
         local label = btn:CreateFontString(nil, "OVERLAY")
-        label:SetFont("Fonts\\MORPHEUS.TTF", 14)
+        label:SetFont("Fonts\\MORPHEUS.TTF", 13)
         label:SetPoint("CENTER", btn, "CENTER", 0, 0)
         label:SetText(dieType)
         btn.label = label
@@ -645,6 +698,35 @@ local function buildMainFrame()
         btn:SetScript("OnClick", function() selectTab(dieType) end)
         tabButtons[i] = btn
     end
+
+    local customTabButton = CreateFrame("Button", nil, tabRow, "BackdropTemplate")
+    customTabButton:SetSize(tabWidth - 2, 28)
+    customTabButton:SetPoint("LEFT", tabRow, "LEFT", #DICE_TYPES * tabWidth, 0)
+    applyBackdrop(customTabButton, COLOR_BG_PANEL, COLOR_GOLD)
+
+    local customTabLabel = customTabButton:CreateFontString(nil, "OVERLAY")
+    customTabLabel:SetFont("Fonts\\MORPHEUS.TTF", 13)
+    customTabLabel:SetPoint("CENTER", customTabButton, "CENTER", 0, 0)
+    customTabLabel:SetText(L.CUSTOM_TAB)
+    customTabButton.label = customTabLabel
+
+    customTabButton:SetScript("OnClick", function()
+        for _, btn in ipairs(tabButtons) do
+            btn:SetBackdropColor(COLOR_BG_PANEL.r, COLOR_BG_PANEL.g, COLOR_BG_PANEL.b, 1)
+            btn.label:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
+        end
+        customTabButton:SetBackdropColor(COLOR_BG_DARK.r, COLOR_BG_DARK.g, COLOR_BG_DARK.b, 1)
+        customTabButton.label:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+
+        if DR.UI.setCustomVisibility then
+            DR.UI.setCustomVisibility(true)
+        end
+        if DR.UI.sidesEntry then
+            DR.UI.sidesInput:SetText("")
+            DR.UI.sidesEntry:Show()
+            DR.UI.sidesInput:SetFocus()
+        end
+    end)
 
     local dieFaceTop = -94
 
@@ -943,6 +1025,73 @@ local function buildMainFrame()
     DR.UI.nameEntry = nameEntry
     DR.UI.nameInput = nameInput
 
+    local sidesEntry = CreateFrame("Frame", "DiceRollerCustomSidesEntry", frame, "BackdropTemplate")
+    sidesEntry:SetSize(280, 140)
+    sidesEntry:SetPoint("CENTER", frame, "CENTER", 0, 0)
+    sidesEntry:SetFrameLevel(frame:GetFrameLevel() + 10)
+    sidesEntry:EnableMouse(true)
+    applyBackdrop(sidesEntry, COLOR_BG_DARK, COLOR_GOLD, true)
+    sidesEntry:Hide()
+
+    local sidesPrompt = sidesEntry:CreateFontString(nil, "OVERLAY")
+    sidesPrompt:SetFont("Fonts\\MORPHEUS.TTF", 13)
+    sidesPrompt:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+    sidesPrompt:SetText(L.CUSTOM_SIDES_PROMPT)
+    sidesPrompt:SetPoint("TOP", sidesEntry, "TOP", 0, -18)
+
+    local sidesInput = CreateFrame("EditBox", nil, sidesEntry, "InputBoxTemplate")
+    sidesInput:SetSize(200, 24)
+    sidesInput:SetPoint("CENTER", sidesEntry, "CENTER", 0, 10)
+    sidesInput:SetAutoFocus(false)
+    sidesInput:SetNumeric(true)
+
+    local function confirmSides()
+        local n = tonumber(sidesInput:GetText())
+        if not n or n < 2 or n > 1000 or n ~= math.floor(n) then
+            print("[DiceRoller] " .. L.CUSTOM_INVALID)
+            return
+        end
+        sidesInput:SetText("")
+        sidesInput:ClearFocus()
+        sidesEntry:Hide()
+        selectCustom(n)
+        onRoll()
+    end
+
+    sidesInput:SetScript("OnEnterPressed", confirmSides)
+    sidesInput:SetScript("OnEscapePressed", function()
+        sidesInput:ClearFocus()
+        sidesEntry:Hide()
+    end)
+
+    local sidesOkBtn = CreateFrame("Button", nil, sidesEntry, "BackdropTemplate")
+    sidesOkBtn:SetSize(90, 26)
+    sidesOkBtn:SetPoint("BOTTOMLEFT", sidesEntry, "BOTTOMLEFT", 24, 16)
+    applyBackdrop(sidesOkBtn, COLOR_BG_PANEL, COLOR_GOLD)
+    local sidesOkLabel = sidesOkBtn:CreateFontString(nil, "OVERLAY")
+    sidesOkLabel:SetFont("Fonts\\MORPHEUS.TTF", 12)
+    sidesOkLabel:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+    sidesOkLabel:SetText(ACCEPT)
+    sidesOkLabel:SetPoint("CENTER", sidesOkBtn, "CENTER", 0, 0)
+    sidesOkBtn:SetScript("OnClick", confirmSides)
+
+    local sidesCancelBtn = CreateFrame("Button", nil, sidesEntry, "BackdropTemplate")
+    sidesCancelBtn:SetSize(90, 26)
+    sidesCancelBtn:SetPoint("BOTTOMRIGHT", sidesEntry, "BOTTOMRIGHT", -24, 16)
+    applyBackdrop(sidesCancelBtn, COLOR_BG_PANEL, COLOR_GOLD)
+    local sidesCancelLabel = sidesCancelBtn:CreateFontString(nil, "OVERLAY")
+    sidesCancelLabel:SetFont("Fonts\\MORPHEUS.TTF", 12)
+    sidesCancelLabel:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
+    sidesCancelLabel:SetText(CANCEL)
+    sidesCancelLabel:SetPoint("CENTER", sidesCancelBtn, "CENTER", 0, 0)
+    sidesCancelBtn:SetScript("OnClick", function()
+        sidesInput:ClearFocus()
+        sidesEntry:Hide()
+    end)
+
+    DR.UI.sidesEntry = sidesEntry
+    DR.UI.sidesInput = sidesInput
+
     saveProfileBtn:SetScript("OnClick", function()
         if #(DiceRollerDB.profiles or {}) >= 5 then
             print("[DiceRoller] " .. L.PROFILE_LIMIT)
@@ -1013,6 +1162,65 @@ local function buildMainFrame()
         profileButtons[i] = btn
     end
 
+    local customWidgets = {}
+
+    selectCustom = function(sides)
+        selectTab("D" .. sides)
+    end
+
+    local customLabel = frame:CreateFontString(nil, "OVERLAY")
+    customLabel:SetFont("Fonts\\MORPHEUS.TTF", 10)
+    customLabel:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
+    customLabel:SetText(L.CUSTOM_LABEL)
+    customLabel:SetPoint("TOPLEFT", rollBtn, "BOTTOMLEFT", 4, -14)
+    customWidgets[#customWidgets + 1] = customLabel
+
+    local customInput = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
+    customInput:SetSize(70, 24)
+    customInput:SetPoint("LEFT", customLabel, "RIGHT", 8, 0)
+    customInput:SetAutoFocus(false)
+    customInput:SetNumeric(true)
+    customInput:SetText("")
+    customWidgets[#customWidgets + 1] = customInput
+
+    local function createCustomFromInput()
+        local n = tonumber(customInput:GetText())
+        if not n or n < 2 or n > 1000 or n ~= math.floor(n) then
+            print("[DiceRoller] " .. L.CUSTOM_INVALID)
+            return
+        end
+        customInput:ClearFocus()
+        selectCustom(n)
+        onRoll()
+    end
+
+    local createBtn = CreateFrame("Button", nil, frame, "BackdropTemplate")
+    createBtn:SetSize(58, 26)
+    createBtn:SetPoint("LEFT", customInput, "RIGHT", 6, 0)
+    applyBackdrop(createBtn, COLOR_BG_PANEL, COLOR_GOLD)
+
+    local createLabel = createBtn:CreateFontString(nil, "OVERLAY")
+    createLabel:SetFont("Fonts\\MORPHEUS.TTF", 11)
+    createLabel:SetTextColor(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b)
+    createLabel:SetText(L.CUSTOM_CREATE)
+    createLabel:SetPoint("CENTER", createBtn, "CENTER", 0, 0)
+
+    createBtn:SetScript("OnClick", createCustomFromInput)
+    customInput:SetScript("OnEnterPressed", createCustomFromInput)
+    customInput:SetScript("OnEscapePressed", function() customInput:ClearFocus() end)
+    customWidgets[#customWidgets + 1] = createBtn
+
+    DR.UI.setCustomVisibility = function(showCustom)
+        local profiles = DiceRollerDB.profiles or {}
+        saveProfileBtn:SetShown(not showCustom)
+        for i, widget in ipairs(profileButtons) do
+            widget:SetShown(not showCustom and profiles[i] ~= nil)
+        end
+        for _, widget in ipairs(customWidgets) do
+            widget:SetShown(showCustom)
+        end
+    end
+
     local historyHeader = frame:CreateFontString(nil, "OVERLAY")
     historyHeader:SetFont("Fonts\\MORPHEUS.TTF", 11)
     historyHeader:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
@@ -1050,6 +1258,7 @@ local function buildMainFrame()
 
     DR.UI.frame               = frame
     DR.UI.tabButtons          = tabButtons
+    DR.UI.customTabButton     = customTabButton
     DR.UI.dieFace             = nil
     DR.UI.shapeCanvas         = shapeCanvas
     DR.UI.shapeResultLabel    = shapeResultLabel
@@ -1062,6 +1271,9 @@ local function buildMainFrame()
 
     selectTab(DiceRollerDB.activeDie or "D6")
     refreshProfiles()
+    if DR.UI.setCustomVisibility then
+        DR.UI.setCustomVisibility(isCustomDie(activeDie))
+    end
 end
 
 local function buildMinimapButton()
@@ -1180,7 +1392,11 @@ onAnimUpdate = function(self, elapsed)
         end
         DR.UI.resultValue:SetText(tostring(animState.finalResult))
 
-        playSoundFile(SOUND_ROLL_END[math.random(#SOUND_ROLL_END)])
+        if activeDie == "D2" then
+            playSoundFile("567413")
+        else
+            playSoundFile(SOUND_ROLL_END[math.random(#SOUND_ROLL_END)])
+        end
 
         local sides   = tonumber(activeDie:sub(2))
         local hasCrit = sides > 3
@@ -1235,7 +1451,7 @@ loader:RegisterEvent("ADDON_LOADED")
 loader:SetScript("OnEvent", function(self, event, addonName)
     if addonName ~= "DiceRoller" then return end
 
-    DiceRollerDB = DiceRollerDB or {}
+DiceRollerDB = DiceRollerDB or {}
 
     if DiceRollerDB.mode then
         activeMode = DiceRollerDB.mode

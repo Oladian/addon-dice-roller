@@ -36,7 +36,14 @@ local L = {
     PROFILE_PROMPT = "Profile name:",
     PROFILE_DELETE = 'Delete profile "%s"?',
     PROFILE_LIMIT = "Profile limit reached (5). Delete one first.",
-    
+
+    -- Custom dice
+    CUSTOM_TAB = "D?",
+    CUSTOM_LABEL = "SIDES",
+    CUSTOM_CREATE = "CREATE",
+    CUSTOM_SIDES_PROMPT = "Number of sides (2 - 1000):",
+    CUSTOM_INVALID = "Enter a number between 2 and 1000.",
+
     -- Help Window
     HELP_TITLE = "Dice Roller - Help",
     HELP_FEATURES = "Features",
@@ -44,7 +51,7 @@ local L = {
     HELP_MODES = "RNG Modes",
     HELP_PARTY = "Party Sync",
     
-    HELP_FEATURES_TEXT = "• 4 Dice Types: D3, D6, D20, D100\n• 5 RNG Modes: Normal, NoRepeat, Smooth, Deck, Advantage\n• Animated rolls with smooth easing\n• Party/raid synchronization\n• Scrollable history (20 rolls)\n• Draggable minimap button",
+    HELP_FEATURES_TEXT = "• 7 Dice Types: D2, D3, D6, D8, D10, D20, D100 + custom dice\n• 5 RNG Modes: Normal, NoRepeat, Smooth, Deck, Advantage\n• Roll modifier (+/-)\n• Roll profiles\n• Animated rolls with smooth easing\n• Party/raid synchronization\n• Scrollable history (20 rolls)\n• Draggable minimap button",
     
     HELP_USAGE_TEXT = "• /diceroller - Toggle window\n• Click minimap button to open/close\n• Select dice type from tabs\n• Choose RNG mode from dropdown\n• Click 'ROLL THE DICE' to roll\n• Scroll history to see past rolls",
     
@@ -87,6 +94,12 @@ if locale == "esES" or locale == "esMX" then
     L.PROFILE_PROMPT = "Nombre del perfil:"
     L.PROFILE_DELETE = '¿Borrar el perfil "%s"?'
     L.PROFILE_LIMIT = "Límite de perfiles alcanzado (5). Borra uno primero."
+
+    L.CUSTOM_TAB = "D?"
+    L.CUSTOM_LABEL = "CARAS"
+    L.CUSTOM_CREATE = "CREAR"
+    L.CUSTOM_SIDES_PROMPT = "Número de caras (2 - 1000):"
+    L.CUSTOM_INVALID = "Introduce un número entre 2 y 1000."
     
     L.HELP_TITLE = "Tirador de Dados - Ayuda"
     L.HELP_FEATURES = "Características"
@@ -94,8 +107,8 @@ if locale == "esES" or locale == "esMX" then
     L.HELP_MODES = "Modos RNG"
     L.HELP_PARTY = "Sincronización"
     
-    L.HELP_FEATURES_TEXT = "• 4 Tipos de Dados: D3, D6, D20, D100\n• 5 Modos RNG: Normal, NoRepeat, Smooth, Deck, Advantage\n• Tiradas animadas con suavizado\n• Sincronización con grupo/raid\n• Historial desplazable (20 tiradas)\n• Botón de minimapa arrastrable"
-    
+    L.HELP_FEATURES_TEXT = "• 7 Tipos de Dados: D2, D3, D6, D8, D10, D20, D100 + dados personalizados\n• 5 Modos RNG: Normal, NoRepeat, Smooth, Deck, Advantage\n• Modificador de tirada (+/-)\n• Perfiles de tirada\n• Tiradas animadas con suavizado\n• Sincronización con grupo/raid\n• Historial desplazable (20 tiradas)\n• Botón de minimapa arrastrable"
+
     L.HELP_USAGE_TEXT = "• /diceroller - Abre/cierra ventana\n• Clic en botón del minimapa para abrir/cerrar\n• Selecciona tipo de dado desde pestañas\n• Elige modo RNG del menú desplegable\n• Clic en 'TIRAR EL DADO' para tirar\n• Desplázate por el historial para ver tiradas pasadas"
     
     L.HELP_MODES_TEXT = "|cffC79C2ENormal|r: RNG puro, probabilidad igual\n\n|cffC79C2ENoRepeat|r: Nunca repite la última tirada\nEjemplo: Sacaste 4 → siguiente puede ser 1,2,3,5,6\n\n|cffC79C2ESmooth|r: Retira tras 3 resultados bajos (25% inferior)\nEjemplo D20: Sacas 3,2,4 → siguiente garantizado 6-20\n\n|cffC79C2EDeck|r: Baraja mezclada, saca sin reemplazo\nEjemplo: Baraja [4,1,6,2,5,3] → saca en orden, baraja al vaciar\n\n|cffC79C2EAdvantage|r: Tira dos veces, toma el mayor (inspirado en D&D)\nEjemplo: Sacas 8 y 15 → resultado 15"
