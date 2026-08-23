@@ -29,6 +29,13 @@ local L = {
     -- Modifier
     MODIFIER = "MODIFIER",
     MODIFIER_TOOLTIP = "Left-click: ±1 | Shift-click: ±5",
+
+    -- Roll profiles
+    SAVE_PROFILE = "Save profile",
+    SAVE_PROFILE_TOOLTIP = "Save current die, mode and modifier as a profile\nLeft-click: roll | Right-click: delete",
+    PROFILE_PROMPT = "Profile name:",
+    PROFILE_DELETE = 'Delete profile "%s"?',
+    PROFILE_LIMIT = "Profile limit reached (5). Delete one first.",
     
     -- Help Window
     HELP_TITLE = "Dice Roller - Help",
@@ -74,6 +81,12 @@ if locale == "esES" or locale == "esMX" then
 
     L.MODIFIER = "MODIFICADOR"
     L.MODIFIER_TOOLTIP = "Clic: ±1 | Mayús+clic: ±5"
+
+    L.SAVE_PROFILE = "Guardar perfil"
+    L.SAVE_PROFILE_TOOLTIP = "Guarda el dado, modo y modificador actuales como perfil\nClic: tirar | Clic derecho: borrar"
+    L.PROFILE_PROMPT = "Nombre del perfil:"
+    L.PROFILE_DELETE = '¿Borrar el perfil "%s"?'
+    L.PROFILE_LIMIT = "Límite de perfiles alcanzado (5). Borra uno primero."
     
     L.HELP_TITLE = "Tirador de Dados - Ayuda"
     L.HELP_FEATURES = "Características"

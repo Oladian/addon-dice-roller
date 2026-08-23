@@ -10,7 +10,7 @@ local COLOR_BG_PANEL    = { r = 0.07, g = 0.05, b = 0.03 }
 local COLOR_TEXT_MUTED  = { r = 0.48, g = 0.39, b = 0.21 }
 
 local FRAME_WIDTH  = 360
-local FRAME_HEIGHT = 580
+local FRAME_HEIGHT = 620
 
 local DICE_TYPES = { "D3", "D6", "D20", "D100" }
 
@@ -245,6 +245,35 @@ end
 local function playSoundFile(path)
     if path and isSoundEnabled() then pcall(PlaySoundFile, path) end
 end
+
+local refreshProfiles
+
+local function saveProfile(name)
+    DiceRollerDB.profiles      = DiceRollerDB.profiles or {}
+    local profiles             = DiceRollerDB.profiles
+    table.insert(profiles, {
+        name     = name,
+        die      = activeDie,
+        mode     = activeMode,
+        modifier = activeModifier,
+    })
+    while #profiles > 5 do
+        table.remove(profiles, 1)
+    end
+    if refreshProfiles then refreshProfiles() end
+end
+
+StaticPopupDialogs["DICEROLLER_DELETE_PROFILE"] = {
+    text     = L.PROFILE_DELETE,
+    button1  = YES,
+    button2  = NO,
+    OnAccept = function(self, data)
+        table.remove(DiceRollerDB.profiles, data.index)
+        if refreshProfiles then refreshProfiles() end
+    end,
+    whileDisplayed = true,
+    hideOnEscape   = true,
+}
 
 local function addHistoryEntry(who, dieType, modeName, value, isMine)
     table.insert(history, 1, { who = who, die = dieType, mode = modeName, value = value, mine = isMine })
@@ -700,6 +729,7 @@ local function buildMainFrame()
     end
 
     setModifier(DiceRollerDB.modifier or 0)
+    DR.UI.setModifier = setModifier
 
     local function makeModButton(text, relativeTo, point, relativePoint, offsetX)
         local btn = CreateFrame("Button", nil, modRow, "BackdropTemplate")
@@ -760,15 +790,184 @@ local function buildMainFrame()
     end)
     rollBtn:SetScript("OnClick", onRoll)
 
+    local profileButtons = {}
+
+    refreshProfiles = function()
+        local list = DiceRollerDB.profiles or {}
+        for i, btn in ipairs(profileButtons) do
+            local p = list[i]
+            if p then
+                btn.label:SetText(p.name)
+                btn:Show()
+            else
+                btn:Hide()
+            end
+        end
+    end
+
+    local function applyProfile(p)
+        selectTab(p.die)
+        activeMode           = p.mode
+        DR.mode              = p.mode
+        DiceRollerDB.mode    = p.mode
+        UIDropDownMenu_SetText(DR.UI.modeDropdown, p.mode)
+        DR.UI.setModifier(p.modifier or 0)
+        onRoll()
+    end
+
+    local saveProfileBtn = CreateFrame("Button", nil, frame, "BackdropTemplate")
+    saveProfileBtn:SetSize(30, 28)
+    saveProfileBtn:SetPoint("TOPLEFT", rollBtn, "BOTTOMLEFT", 0, -8)
+    applyBackdrop(saveProfileBtn, COLOR_BG_PANEL, COLOR_GOLD)
+
+    local saveLabel = saveProfileBtn:CreateFontString(nil, "OVERLAY")
+    saveLabel:SetFont("Fonts\\MORPHEUS.TTF", 14)
+    saveLabel:SetTextColor(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b)
+    saveLabel:SetText("+")
+    saveLabel:SetPoint("CENTER", saveProfileBtn, "CENTER", 0, 0)
+
+    local nameEntry = CreateFrame("Frame", "DiceRollerProfileNameEntry", frame, "BackdropTemplate")
+    nameEntry:SetSize(280, 140)
+    nameEntry:SetPoint("CENTER", frame, "CENTER", 0, 0)
+    nameEntry:SetFrameLevel(frame:GetFrameLevel() + 10)
+    nameEntry:EnableMouse(true)
+    applyBackdrop(nameEntry, COLOR_BG_DARK, COLOR_GOLD, true)
+    nameEntry:Hide()
+
+    local namePrompt = nameEntry:CreateFontString(nil, "OVERLAY")
+    namePrompt:SetFont("Fonts\\MORPHEUS.TTF", 13)
+    namePrompt:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+    namePrompt:SetText(L.PROFILE_PROMPT)
+    namePrompt:SetPoint("TOP", nameEntry, "TOP", 0, -18)
+
+    local nameInput = CreateFrame("EditBox", nil, nameEntry, "InputBoxTemplate")
+    nameInput:SetSize(200, 24)
+    nameInput:SetPoint("CENTER", nameEntry, "CENTER", 0, 10)
+    nameInput:SetAutoFocus(false)
+    nameInput:SetMaxLetters(24)
+
+    local function confirmName()
+        local text = nameInput:GetText()
+        if text and not text:match("^%s*$") then
+            saveProfile(text)
+        end
+        nameInput:ClearFocus()
+        nameEntry:Hide()
+    end
+
+    nameInput:SetScript("OnEnterPressed", confirmName)
+    nameInput:SetScript("OnEscapePressed", function()
+        nameInput:ClearFocus()
+        nameEntry:Hide()
+    end)
+
+    local okBtn = CreateFrame("Button", nil, nameEntry, "BackdropTemplate")
+    okBtn:SetSize(90, 26)
+    okBtn:SetPoint("BOTTOMLEFT", nameEntry, "BOTTOMLEFT", 24, 16)
+    applyBackdrop(okBtn, COLOR_BG_PANEL, COLOR_GOLD)
+    local okLabel = okBtn:CreateFontString(nil, "OVERLAY")
+    okLabel:SetFont("Fonts\\MORPHEUS.TTF", 12)
+    okLabel:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+    okLabel:SetText(ACCEPT)
+    okLabel:SetPoint("CENTER", okBtn, "CENTER", 0, 0)
+    okBtn:SetScript("OnClick", confirmName)
+
+    local cancelBtn = CreateFrame("Button", nil, nameEntry, "BackdropTemplate")
+    cancelBtn:SetSize(90, 26)
+    cancelBtn:SetPoint("BOTTOMRIGHT", nameEntry, "BOTTOMRIGHT", -24, 16)
+    applyBackdrop(cancelBtn, COLOR_BG_PANEL, COLOR_GOLD)
+    local cancelLabel = cancelBtn:CreateFontString(nil, "OVERLAY")
+    cancelLabel:SetFont("Fonts\\MORPHEUS.TTF", 12)
+    cancelLabel:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
+    cancelLabel:SetText(CANCEL)
+    cancelLabel:SetPoint("CENTER", cancelBtn, "CENTER", 0, 0)
+    cancelBtn:SetScript("OnClick", function()
+        nameInput:ClearFocus()
+        nameEntry:Hide()
+    end)
+
+    DR.UI.nameEntry = nameEntry
+    DR.UI.nameInput = nameInput
+
+    saveProfileBtn:SetScript("OnClick", function()
+        if #(DiceRollerDB.profiles or {}) >= 5 then
+            print("[DiceRoller] " .. L.PROFILE_LIMIT)
+            return
+        end
+        nameInput:SetText("")
+        nameEntry:Show()
+        nameInput:SetFocus()
+    end)
+    saveProfileBtn:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(0.18, 0.14, 0.07, 1)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(L.SAVE_PROFILE, COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+        GameTooltip:Show()
+    end)
+    saveProfileBtn:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(COLOR_BG_PANEL.r, COLOR_BG_PANEL.g, COLOR_BG_PANEL.b, 1)
+        GameTooltip:Hide()
+    end)
+
+    for i = 1, 5 do
+        local btn = CreateFrame("Button", nil, frame, "BackdropTemplate")
+        btn:SetSize(58, 28)
+        if i == 1 then
+            btn:SetPoint("LEFT", saveProfileBtn, "RIGHT", 4, 0)
+        else
+            btn:SetPoint("LEFT", profileButtons[i - 1], "RIGHT", 4, 0)
+        end
+        applyBackdrop(btn, COLOR_BG_PANEL, COLOR_GOLD)
+        btn:Hide()
+
+        local label = btn:CreateFontString(nil, "OVERLAY")
+        label:SetFont("Fonts\\FRIZQT__.TTF", 9)
+        label:SetTextColor(COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+        label:SetPoint("CENTER", btn, "CENTER", 0, 0)
+        label:SetWordWrap(false)
+        label:SetJustifyH("CENTER")
+        btn.label = label
+
+        btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+        btn:SetScript("OnClick", function(self, mouseButton)
+            local p = (DiceRollerDB.profiles or {})[i]
+            if not p then return end
+            if mouseButton == "RightButton" then
+                StaticPopup_Show("DICEROLLER_DELETE_PROFILE", p.name, nil, { index = i })
+            else
+                applyProfile(p)
+            end
+        end)
+
+        btn:SetScript("OnEnter", function(self)
+            self:SetBackdropColor(0.18, 0.14, 0.07, 1)
+            local p = (DiceRollerDB.profiles or {})[i]
+            if p then
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:AddLine(p.name, COLOR_GOLD_LIGHT.r, COLOR_GOLD_LIGHT.g, COLOR_GOLD_LIGHT.b)
+                GameTooltip:AddLine(string.format("%s · %s %+d", p.die, p.mode, p.modifier or 0), 0.8, 0.8, 0.8)
+                GameTooltip:AddLine(L.SAVE_PROFILE_TOOLTIP, 0.6, 0.6, 0.6, true)
+                GameTooltip:Show()
+            end
+        end)
+        btn:SetScript("OnLeave", function(self)
+            self:SetBackdropColor(COLOR_BG_PANEL.r, COLOR_BG_PANEL.g, COLOR_BG_PANEL.b, 1)
+            GameTooltip:Hide()
+        end)
+
+        profileButtons[i] = btn
+    end
+
     local historyHeader = frame:CreateFontString(nil, "OVERLAY")
     historyHeader:SetFont("Fonts\\MORPHEUS.TTF", 11)
     historyHeader:SetTextColor(COLOR_TEXT_MUTED.r, COLOR_TEXT_MUTED.g, COLOR_TEXT_MUTED.b)
     historyHeader:SetText(L.HISTORY)
-    historyHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -432)
+    historyHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -468)
 
     local clearHistoryBtn = CreateFrame("Button", nil, frame)
     clearHistoryBtn:SetSize(16, 16)
-    clearHistoryBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -16, -430)
+    clearHistoryBtn:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -16, -466)
     clearHistoryBtn:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
     clearHistoryBtn:SetHighlightTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
     clearHistoryBtn:SetPushedTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Down")
@@ -784,11 +983,11 @@ local function buildMainFrame()
     local divider = frame:CreateTexture(nil, "ARTWORK")
     divider:SetHeight(1)
     divider:SetColorTexture(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b, 0.35)
-    divider:SetPoint("TOPLEFT",  frame, "TOPLEFT",  10, -444)
-    divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -444)
+    divider:SetPoint("TOPLEFT",  frame, "TOPLEFT",  10, -480)
+    divider:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -480)
 
     local historyScroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    historyScroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -450)
+    historyScroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -488)
     historyScroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -34, 14)
 
     local historyScrollChild = CreateFrame("Frame", nil, historyScroll)
@@ -808,6 +1007,7 @@ local function buildMainFrame()
     DR.UI.historyRows         = buildHistoryRows(historyScrollChild)
 
     selectTab(DiceRollerDB.activeDie or "D6")
+    refreshProfiles()
 end
 
 local function buildMinimapButton()
@@ -985,6 +1185,8 @@ loader:SetScript("OnEvent", function(self, event, addonName)
     end
 
     activeModifier = math.max(-999, math.min(999, DiceRollerDB.modifier or 0))
+
+    DiceRollerDB.profiles = DiceRollerDB.profiles or {}
 
     buildHelpFrame()
     buildMainFrame()
