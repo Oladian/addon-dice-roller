@@ -175,6 +175,28 @@ local function buildD2Shape(parent, cx, cy, angleOffset)
     drawPolygon(parent, cx, cy, 32, 24, 0.9, angleOffset)
 end
 
+local function drawEllipse(parent, cx, cy, radius, sides, thickness, scaleX)
+    local pts = {}
+    for i = 0, sides - 1 do
+        local a = math.rad(360 / sides * i)
+        pts[i + 1] = {
+            x = cx + radius * (scaleX or 1) * math.cos(a),
+            y = cy + radius * math.sin(a),
+        }
+    end
+    for i = 1, sides do
+        local next = (i % sides) + 1
+        drawLine(parent, pts[i].x, pts[i].y, pts[next].x, pts[next].y, thickness)
+    end
+end
+
+local function buildD2FlipShape(parent, cx, cy, phaseDeg)
+    local squash = math.abs(math.cos(math.rad(phaseDeg)))
+    if squash < 0.10 then squash = 0.10 end
+    drawEllipse(parent, cx, cy, 44, 24, 1.8, squash)
+    drawEllipse(parent, cx, cy, 32, 24, 0.9, squash)
+end
+
 local function buildD8Shape(parent, cx, cy, angleOffset)
     angleOffset = angleOffset or 0
     local points = drawPolygon(parent, cx, cy, 44, 4, 1.8, 90 + angleOffset)
@@ -188,7 +210,7 @@ local function buildD10Shape(parent, cx, cy, angleOffset)
     drawLine(parent, points[1].x, points[1].y, points[3].x, points[3].y, 0.9)
 end
 
-local function showDieShape(dieType, resultLabel, angleOffset)
+local function showDieShape(dieType, resultLabel, angleOffset, isFlipping)
     angleOffset = angleOffset or 0
     clearShapeLines()
 
@@ -204,7 +226,11 @@ local function showDieShape(dieType, resultLabel, angleOffset)
     local cy = canvas:GetHeight() / 2
 
     if dieType == "D2" then
-        buildD2Shape(canvas, cx, cy, angleOffset)
+        if isFlipping then
+            buildD2FlipShape(canvas, cx, cy, angleOffset)
+        else
+            buildD2Shape(canvas, cx, cy, angleOffset)
+        end
     elseif dieType == "D3" then
         buildD3Shape(canvas, cx, cy, angleOffset)
     elseif dieType == "D6" then
@@ -1141,12 +1167,15 @@ onAnimUpdate = function(self, elapsed)
 
     animState.currentAngle = easeOut * animState.totalRotation
 
-    showDieShape(activeDie, DR.UI.shapeResultLabel, animState.currentAngle)
+    showDieShape(activeDie, DR.UI.shapeResultLabel, animState.currentAngle, true)
 
     if progress >= 1.0 then
         if activeDie == "D6" then
             showD6Face(animState.naturalRoll, animState.totalRotation % 360)
         else
+            if activeDie == "D2" then
+                showDieShape(activeDie, DR.UI.shapeResultLabel, 0)
+            end
             DR.UI.shapeResultLabel:SetText(tostring(animState.naturalRoll))
         end
         DR.UI.resultValue:SetText(tostring(animState.finalResult))
