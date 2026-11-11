@@ -1,0 +1,7 @@
+package-as: DiceRoller
+
+move-folders:
+  DiceRoller/DiceRoller: DiceRoller
+
+ignore:
+  - README.md
